@@ -13,11 +13,11 @@ handlers:
   script: main.app
 - url: /_ah/mail/.*
   script: main.app
-- url: /mail
+- url: /
   script: main.app
-  login: admin
 - url: .*
   script: main.app
+  login: admin
 
 libraries:
 - name: webapp2
