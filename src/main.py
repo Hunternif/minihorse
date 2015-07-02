@@ -1,7 +1,9 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 from mh_email import *
 from mh_models import *
+from mh_artbattle import *
 
 import webapp2
 
@@ -15,4 +17,5 @@ app = webapp2.WSGIApplication([
   ('/', HelloHandler),
   ('/inbox', InboxHandler),
   EmailHandler.mapping(),
+  ('/artbattle/announce', announce)
 ], debug=True)

@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from mh_models import Email
 
 from google.appengine.api.mail import InboundEmailMessage

@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 from datetime import tzinfo, timedelta
 
 from google.appengine.ext import ndb
