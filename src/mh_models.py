@@ -65,7 +65,7 @@ class ArtBattleState(ndb.Model):
   # 0 - Idle (results posted, awaiting announcement)
   # 1 - Pre-start (announcement made)
   # 2 - Battle on
-  # 3 - Voting in progress
+  # 3 - Vote in progress
   phase = ndb.IntegerProperty()
   current_battle = ndb.KeyProperty(kind='ArtBattle')
   

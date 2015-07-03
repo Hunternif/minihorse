@@ -17,5 +17,6 @@ app = webapp2.WSGIApplication([
   ('/', HelloHandler),
   ('/inbox', InboxHandler),
   EmailHandler.mapping(),
-  ('/artbattle/announce', announce)
+  ('/artbattle/announce', announce),
+  ('/artbattle/set_theme', set_theme),
 ], debug=True)

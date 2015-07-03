@@ -23,7 +23,7 @@ libraries:
 - name: webapp2
   version: "2.5.2"
 - name: lxml
-  version: "latest"
+  version: "latest" # Even though Tabun API requires lxml-3.3, and App Engine Runtime only provides 2.3.5, this will hopefully work for some cases
 
 inbound_services:
 - mail
