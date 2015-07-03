@@ -1,0 +1,136 @@
+<html>
+<head>
+	<title>{title}</title>
+	<script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
+	
+	<!-- Latest compiled and minified CSS -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+
+	<!-- Optional theme -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css">
+
+	<!-- Latest compiled and minified JavaScript -->
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+	
+	<!-- Date picker -->
+	<link id="bsdp-css" href="https://eternicode.github.io/bootstrap-datepicker/bootstrap-datepicker/css/datepicker3.css" rel="stylesheet">
+	<script src="https://eternicode.github.io/bootstrap-datepicker/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
+	
+	<script type="text/javascript">
+		$(document).ready(function () {
+			$('#datepicker').datepicker({
+				format: "dd.mm.yyyy",
+				todayHighlight: true
+			});
+			
+		});
+		$('#datepicker').changeDate(
+			//TODO open that date
+		)
+	</script>
+	<style type="text/css">
+		.table tbody>tr>td.verta {
+			vertical-align: middle;
+		}
+	</style>
+</head>
+<body>
+<div class="container">
+	<div class="page-header"><h1>Art-Battle</h1></div>
+	<div class="form-horizontal">
+		<div class="form-group">
+			<label for="datepicker" class="col-md-2 control-label">Date</label>
+			<div class="col-md-2"><div class="input-group">
+				<input type="text" class="form-control" value="{date}" id="datepicker">
+				<span class="input-group-addon"><i class="glyphicon glyphicon-calendar"></i></span>
+			</div></div>
+		</div>
+		<div class="form-group">
+			<div class="col-md-offset-2 col-md-10">
+				<button type="button" class="btn btn-success" id="btn_create">Create</button>
+			<button type="button" class="btn btn-danger" id="btn_delete">Delete</button>
+			</div>
+		</div>
+		<hr>
+		<div class="form-group">
+			<label class="col-md-2 control-label" for="theme">Theme</label>
+			<div class="col-md-10"><input type="text" class="form-control" value="{theme}" id="theme"/></div>
+		</div>
+		<div class="form-group">
+			<div class="col-md-offset-2 col-md-10">
+				<button type="button" class="btn btn-primary" id="btn_theme">Set</button>
+			</div>
+		</div>
+		<hr>
+		<div class="form-group">
+			<div class="form-horizontal col-md-6">
+				<div class="form-group">
+					<label class="col-md-4 control-label" for="announcement_post_id">Announcement post ID</label>
+					<div class="col-md-6"><input type="text" class="form-control" value="{announcement_post_id}" id="announcement_post_id"/></div>
+				</div>
+				<div class="form-group">
+					<label class="col-md-4 control-label" for="battle_post_id">Battle post ID</label>
+					<div class="col-md-6"><input type="text" class="form-control" value="{battle_post_id}" id="battle_post_id"/></div>
+				</div>
+				<div class="form-group">
+					<label class="col-md-4 control-label" for="poll_post_id">Poll post ID</label>
+					<div class="col-md-6"><input type="text" class="form-control" value="{poll_post_id}" id="poll_post_id"/></div>
+				</div>
+				<div class="form-group">
+					<label class="col-md-4 control-label" for="results_post_id">Results post ID</label>
+					<div class="col-md-6"><input type="text" class="form-control" value="{results_post_id}" id="results_post_id"/></div>
+				</div>
+			</div>
+			<div class="form-horizontal col-md-6">
+				<div class="form-group">
+					<label class="col-md-4 control-label" for="cover_art_url">Cover art URL</label>
+					<div class="col-md-6"><input type="text" class="form-control" value="{cover_art_url}" id="cover_art_url"/></div>
+				</div>
+				<div class="form-group">
+					<label class="col-md-4 control-label" for="cover_art_author">Cover art author</label>
+					<div class="col-md-6">
+						<div class="input-group">
+							<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
+							<input type="text" class="form-control" value="{cover_art_author}" id="cover_art_author"/>
+						</div>
+					</div>
+				</div>
+				<div class="form-group">
+					<label class="col-md-4 control-label" for="cover_art_source">Cover art source</label>
+					<div class="col-md-6"><input type="text" class="form-control" value="{cover_art_source}" id="cover_art_source"/></div>
+				</div>
+				<div class="form-group">
+					<div class="col-md-offset-4 col-md-6">
+						<button type="button" class="btn btn-primary" id="btn_save">Save</button>
+					</div>
+				</div>
+			</div>
+		</div>
+		<hr>
+		<h2>Participants</h2>
+		<table class="table" id="table_participants">
+			<thead><tr><th>Time</th><th>Name</th><th>Art URL</th><th>Preview</th><th>Approve</th></tr></thead>
+			<tbody>
+				<tr>
+					<td class="verta">21:47</td>
+					<td class="verta">gor1ck</td>
+					<td class="verta">http://i.imgur.com/asdfsdfrd.jpg</td>
+					<td><img src="https://i.imgur.com/AoE9fwKs.png"/></td>
+					<td class="verta"><button type="button" class="btn btn-primary">Approve</button></td>
+				</tr>
+				<tr>
+					<td class="col-md-1"><input type="text" class="form-control"/></td>
+					<td class="col-md-3"><div class="input-group">
+						<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
+						<input type="text" class="form-control"/>
+					</div></td>
+					<td class="col-md-6"><input type="text" class="form-control"/></td>
+					<td class="col-md-1"><button type="button" class="btn btn-success">Add</button></td>
+					<td class="col-md-1"></td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+</div>
+</body>
+</html>
