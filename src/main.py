@@ -8,6 +8,7 @@ from google.appengine.ext.webapp.mail_handlers import InboundMailHandler
 from google.appengine.ext import ndb
 
 import logging
+import random
 import webapp2
 
 import fix_libs
@@ -79,28 +80,30 @@ TEST_BLOG_ID = 40151
 ART_BATTLE_BLOG_ID = 15543
 BLOG_ID = TEST_BLOG_ID # The value used by the ArtBattle class
 
-def get_user():
+def get_admin():
   return tabun_api.User(LOGIN, PASSWORD)
 
 class TabunUser(ndb.Model):
   name = ndb.StringProperty()
 
 class Participant(ndb.Model):
-  number = ndb.IntegerProperty()
+  number = ndb.IntegerProperty() # assigned via random shuffle before creating a poll
   user = ndb.KeyProperty(kind='TabunUser')
   art_url = ndb.StringProperty()
   art_preview_url = ndb.StringProperty()
+  time = ndb.TimeProperty(auto_now_add=True) # UTC time of submitting artwork
   votes = ndb.IntegerProperty()
   original_email = ndb.KeyProperty(kind='Email') # will be None for manually added participants
-  qualified = ndb.BooleanProperty()
+  approved = ndb.BooleanProperty()
 
 class ArtBattle(ndb.Model):
   PHASE_UPCOMING = 0
   PHASE_ANNOUNCED = 1
   PHASE_PREPARED = 2
   PHASE_BATTLE_ON = 3
-  PHASE_VOTING = 4
-  PHASE_FINISHED = 5
+  PHASE_APPROVAL = 4 # May be skipped if all artworks are approved by the end of the battle
+  PHASE_VOTING = 5
+  PHASE_FINISHED = 6
   phase = ndb.IntegerProperty(default=PHASE_UPCOMING)
   
   date = ndb.DateProperty() # No two Art-Battles may have the same date!
@@ -119,7 +122,7 @@ class ArtBattle(ndb.Model):
   def announce(self):
     """Creates a post announcing the upcoming Art-Battle. Not used if the artist decides to post to 'ЯРОК'"""
     logging.info("Announcing Art-Battle %s" % self.date)
-    user = get_user()
+    user = get_admin()
     # TODO: pre-announcement text
     text = u'Текст объявления Арт-Баттла'
     ret = user.add_post(BLOG_ID, u'Объявление Арт-Баттла %s' % self.date, text, u'Арт-Баттл, объявление, конкурс, %s' % self.date)
@@ -131,7 +134,7 @@ class ArtBattle(ndb.Model):
   def prepare(self):
     """Creates a post for date's Art-Battle. This post will be later updated with the theme."""
     logging.info("Preparing Art-Battle %s" % self.date)
-    user = get_user()
+    user = get_admin()
     # TODO: announcement text
     text = u'Текст Арт-Баттла без темы'
     ret = user.add_post(BLOG_ID, u'Арт-Баттл %s' % self.date, text, u'Арт-Баттл, конкурс, %s' % self.date)
@@ -142,7 +145,7 @@ class ArtBattle(ndb.Model):
   def set_theme(self, theme):
     """Sets the theme and begins Art-Battle."""
     logging.info("Setting Art-Battle theme: %s. Art-Battle begins!" % theme)
-    user = get_user()
+    user = get_admin()
     # TODO: announcement text + theme
     text = u'Текст Арт-Баттла с темой'
     user.edit_post(self.battle_post_id, BLOG_ID, u'Арт-Баттл %s' % self.date, text, u'Арт-Баттл, конкурс, %s' % self.date)
@@ -152,21 +155,26 @@ class ArtBattle(ndb.Model):
   def create_poll(self):
     """Ends Art-Battle and starts a poll to find the winner."""
     logging.info("Creating poll for Art-Battle %s" % self.date)
-    user = get_user()
+    user = get_admin()
     # TODO: voting text
     text = u'Текст голосования'
     choices = []
-    for p in self.participants:
-      choices.append(u'Участник %d\n<img src="%s"/>' % p.number, p.art_preview_url)
+    # Shuffle participants' numbers:
+    i = 1
+    for p in random.sample(self.participants, len(self.participants)):
+      p.number = i
+      i++
+      choices.append(u'Участник %d\n<img src="%s"/>' % i, p.art_preview_url)
     ret = user.add_poll(BLOG_ID, u'Голосование за Арт-Баттл %s' % self.date, choices, text, u'Арт-Баттл, голосвание, %s' % self.date)
     self.poll_post_id = ret[1]
+    # TODO check if artworks need approval and then proceed to either PHASE_APPROVAL or PHASE_VOTING
     self.phase = PHASE_VOTING
     self.put()
 
   def count_votes(self):
     """Ends voting and creates a post with results."""
     logging.info("Ending and counting votes for Art-Battle %s" % self.date)
-    user = get_user()
+    user = get_admin()
     post = user.get_post(self.poll_post_id)
     for i in range(len(post.poll.items)):
       self.participants[i].votes = post.poll.items[i][2]
@@ -177,7 +185,16 @@ class ArtBattle(ndb.Model):
     # TODO: send message to winner(s)
     self.phase = PHASE_FINISHED
     self.put()
-
+  
+  def add_participant(self, username, art_url, original_email=None):
+    """Add a participant to this Art-Battle and format their artwork."""
+    user = TabunUser.get_or_insert(id=username)
+    # TODO: resize image and upload to imgur.com (if needed)
+    p = Participant(user=user, art_url=art_url, original_email=original_email)
+    # Assuming an imgur.com URL, the preview URL is "....s.jpg/png"
+    p.art_preview_url = art_url[:-4] + 's' + art_url[-4:]
+    self.participants.append(p)
+    self.put()
 
 class ArtBattleState(ndb.Model):
   current_battle = ndb.KeyProperty(kind='ArtBattle')
