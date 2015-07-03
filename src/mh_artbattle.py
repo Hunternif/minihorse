@@ -26,3 +26,8 @@ def set_theme(*args, **kwargs):
   logging.info("Setting theme")
   user = get_user()
   user.edit_post(POST_ID, BLOG_ID, u'Обновленный анонс арт-баттла', u'Обновленный текст анонса!', 'test, test2')
+
+def create_poll(*args, **kwargs):
+  logging.info("Creating poll")
+  user = get_user()
+  user.add_poll(BLOG_ID, u'Голосование за баттл', [u'Участник 1', u'Участник 2', u'Участник 3'], u'Иди голосуй!11', 'test')

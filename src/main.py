@@ -19,4 +19,5 @@ app = webapp2.WSGIApplication([
   EmailHandler.mapping(),
   ('/artbattle/announce', announce),
   ('/artbattle/set_theme', set_theme),
+  ('/artbattle/create_poll', create_poll),
 ], debug=True)
