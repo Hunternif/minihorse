@@ -16,17 +16,19 @@
 	<link id="bsdp-css" href="https://eternicode.github.io/bootstrap-datepicker/bootstrap-datepicker/css/datepicker3.css" rel="stylesheet">
 	<script src="https://eternicode.github.io/bootstrap-datepicker/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
 	
+	<!-- Better dropdown list -->
+	<link rel="stylesheet" type="text/css" href="css/bootstrap-select.min.css">
+	<script src="https://silviomoreto.github.io/bootstrap-select/bootstrap-select.min.js"/>
+	
 	<script type="text/javascript">
 		$(document).ready(function () {
 			$('#datepicker').datepicker({
-				format: "dd.mm.yyyy",
+				format: "dd/mm/yyyy",
 				todayHighlight: true
 			});
-			
+			$('.selectpicker').selectpicker();
 		});
-		$('#datepicker').changeDate(
-			//TODO open that date
-		)
+		//TODO: fix smaller screen layout.
 	</script>
 	<style type="text/css">
 		.table tbody>tr>td.verta {
@@ -36,30 +38,43 @@
 </head>
 <body>
 <div class="container">
-	<div class="page-header"><h1>Art-Battle</h1></div>
+	<div class="page-header">
+		<div class="row">
+			<div class="col-md-11"><h1>Art-Battle {date}</h1></div>
+			<button type="button" class="btn btn-danger col-md-1" style="margin-top:25px" id="btn_delete">Delete</button>
+		</div>
+	</div>
 	<div class="form-horizontal">
 		<div class="form-group">
-			<label for="datepicker" class="col-md-2 control-label">Date</label>
-			<div class="col-md-2"><div class="input-group">
-				<input type="text" class="form-control" value="{date}" id="datepicker">
-				<span class="input-group-addon"><i class="glyphicon glyphicon-calendar"></i></span>
-			</div></div>
-		</div>
-		<div class="form-group">
-			<div class="col-md-offset-2 col-md-10">
-				<button type="button" class="btn btn-success" id="btn_create">Create</button>
-			<button type="button" class="btn btn-danger" id="btn_delete">Delete</button>
+			<div class="form-horizontal col-md-6">
+				<div class="form-group">
+					<label for="dropdown_date" class="col-md-4 control-label">Open date</label>
+					<div class="col-md-6">
+						<select class="selectpicker" id="dropdown_date">
+							<option>Mustard</option>
+							<option>Ketchup</option>
+							<option>Relish</option>
+						</select>
+					</div>
+					<button type="button" class="btn btn-primary col-md-2" id="btn_open">Open</button>
+				</div>
+			</div>
+			<div class="form-horizontal col-md-6">
+				<div class="form-group">
+					<label for="datepicker" class="col-md-4 control-label">Create new</label>
+					<div class="col-md-6">
+						<div class="input-group">
+						<input type="text" class="form-control" value="{date}" id="datepicker">
+						<span class="input-group-addon"><i class="glyphicon glyphicon-calendar"></i></span>
+					</div></div>
+					<button type="button" class="btn btn-success col-md-2" id="btn_create">Create</button>
+				</div>
 			</div>
 		</div>
-		<hr>
 		<div class="form-group">
 			<label class="col-md-2 control-label" for="theme">Theme</label>
-			<div class="col-md-10"><input type="text" class="form-control" value="{theme}" id="theme"/></div>
-		</div>
-		<div class="form-group">
-			<div class="col-md-offset-2 col-md-10">
-				<button type="button" class="btn btn-primary" id="btn_theme">Set</button>
-			</div>
+			<div class="col-md-9"><input type="text" class="form-control" value="{theme}" id="theme"/></div>
+			<button type="button" class="btn btn-primary col-md-1" id="btn_theme">Set</button>
 		</div>
 		<hr>
 		<div class="form-group">
@@ -84,24 +99,34 @@
 			<div class="form-horizontal col-md-6">
 				<div class="form-group">
 					<label class="col-md-4 control-label" for="cover_art_url">Cover art URL</label>
-					<div class="col-md-6"><input type="text" class="form-control" value="{cover_art_url}" id="cover_art_url"/></div>
+					<div class="col-md-6">
+						<div class="input-group">
+							<input type="text" class="form-control" value="{cover_art_url}" id="cover_art_url"/>
+							<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
+						</div>
+					</div>
 				</div>
 				<div class="form-group">
 					<label class="col-md-4 control-label" for="cover_art_author">Cover art author</label>
 					<div class="col-md-6">
 						<div class="input-group">
-							<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
 							<input type="text" class="form-control" value="{cover_art_author}" id="cover_art_author"/>
+							<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
 						</div>
 					</div>
 				</div>
 				<div class="form-group">
 					<label class="col-md-4 control-label" for="cover_art_source">Cover art source</label>
-					<div class="col-md-6"><input type="text" class="form-control" value="{cover_art_source}" id="cover_art_source"/></div>
+					<div class="col-md-6">
+						<div class="input-group">
+							<input type="text" class="form-control" value="{cover_art_source}" id="cover_art_source"/>
+							<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
+						</div>
+					</div>
 				</div>
 				<div class="form-group">
 					<div class="col-md-offset-4 col-md-6">
-						<button type="button" class="btn btn-primary" id="btn_save">Save</button>
+						<button type="button" class="btn btn-default" id="btn_save">Save</button>
 					</div>
 				</div>
 			</div>
@@ -116,17 +141,25 @@
 					<td class="verta">gor1ck</td>
 					<td class="verta">http://i.imgur.com/asdfsdfrd.jpg</td>
 					<td><img src="https://i.imgur.com/AoE9fwKs.png"/></td>
-					<td class="verta"><button type="button" class="btn btn-primary">Approve</button></td>
+					<td class="verta">
+						<div class="btn-group">
+							<button type="button" class="btn btn-success" style="height:40px"><i class="glyphicon glyphicon-ok"></i></button>
+							<button type="button" class="btn btn-danger" style="height:40px"><i class="glyphicon glyphicon-ban-circle"></i></button>
+						</div>
+					</td>
 				</tr>
 				<tr>
 					<td class="col-md-1"><input type="text" class="form-control"/></td>
 					<td class="col-md-3"><div class="input-group">
-						<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
 						<input type="text" class="form-control"/>
+						<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
 					</div></td>
-					<td class="col-md-6"><input type="text" class="form-control"/></td>
-					<td class="col-md-1"><button type="button" class="btn btn-success">Add</button></td>
-					<td class="col-md-1"></td>
+					<td class="col-md-5"><div class="input-group">
+						<input type="text" class="form-control"/>
+						<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
+					</div></td>
+					<td class="col-md-1"><button type="button" class="btn btn-primary">Add</button></td>
+					<td class="col-md-2"></td>
 				</tr>
 			</tbody>
 		</table>
