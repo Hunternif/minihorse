@@ -13,6 +13,7 @@ PASSWORD = 'tabunminihorsebot'
 
 BLOG_ID = 40151 # Blog test539
 POST_ID = 134954 # Test post #2
+POLL_ID = 134958 # Test poll #3
 
 def get_user():
   return api.User(LOGIN, PASSWORD)
@@ -31,3 +32,9 @@ def create_poll(*args, **kwargs):
   logging.info("Creating poll")
   user = get_user()
   user.add_poll(BLOG_ID, u'Голосование за баттл', [u'Участник 1', u'Участник 2', u'Участник 3'], u'Иди голосуй!11', 'test')
+
+def count_votes(*args, **kwargs):
+  logging.info("Counting votes")
+  user = get_user()
+  post = user.get_post(POLL_ID)
+  logging.info(post.poll.items)

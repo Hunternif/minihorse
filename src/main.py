@@ -20,4 +20,5 @@ app = webapp2.WSGIApplication([
   ('/artbattle/announce', announce),
   ('/artbattle/set_theme', set_theme),
   ('/artbattle/create_poll', create_poll),
+  ('/artbattle/count_votes', count_votes),
 ], debug=True)

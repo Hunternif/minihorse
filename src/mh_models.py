@@ -40,6 +40,7 @@ class TabunUser(ndb.Model):
   name = ndb.StringProperty()
 
 class Participant(ndb.Model):
+  number = ndb.IntegerProperty()
   user = ndb.KeyProperty(kind='TabunUser')
   art_url = ndb.StringProperty()
   art_preview_url = ndb.StringProperty()
