@@ -9,7 +9,7 @@
 	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css">
 	
 	<!-- Date picker -->
-	<link id="bsdp-css" href="static/datepicker3.css" rel="stylesheet">
+	<link id="bsdp-css" href="/static/datepicker3.css" rel="stylesheet">
 	
 	<style type="text/css">
 		.table tbody>tr>td.verta {
@@ -39,7 +39,7 @@
 					</div>
 				</div>
 			</div>
-			<form class="form-horizontal col-md-6" method="POST" action="/artbattle-create">
+			<form class="form-horizontal col-md-6" method="POST" action="create">
 				<div class="form-group">
 					<label for="datepicker" class="col-md-4 control-label">Create new</label>
 					<div class="col-md-6">
@@ -59,7 +59,7 @@
 		<div class="form-group">
 			<div class="col-md-offset-2 col-md-10">
 				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_announce">Announce</button>
-				<button type="button" class="btn btn-danger" id="btn_delete">Delete</button>
+				<button type="button" class="btn btn-danger" id="btn_delete" onclick="deleteDate()">Delete</button>
 			</div>
 		</div>
 		<div class="form-group">
@@ -162,7 +162,7 @@
 
 <script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
-<script src="static/bootstrap-datepicker.min.js"></script>
+<script src="/static/bootstrap-datepicker.min.js"></script>
 <script type="text/javascript">
 	date = '{{date}}';
 	
@@ -184,12 +184,22 @@
 	});
 	
 	$('.dropdown-menu li > a').click(function(e){
-		location.href = '/artbattle-edit?date=' + this.innerHTML;
+		location.href = 'edit?date=' + this.innerHTML;
 		//$('#dropdownMenu_date_label').text(this.innerHTML); // BIG KLUDGE!
 		//$('#input_open_date').val(this.innerHTML);
 		//$('#btn_open').removeAttr('disabled');
 	});
 	$('#datepicker').on('changeDate', checkCreateButtonEnabled);
+	
+	function deleteDate() {
+		$.ajax({
+			url: 'delete?date=' + date,
+			type: 'DELETE',
+			success: function(result) {
+				location.reload();
+			}
+		});
+	}
 	
 	//TODO: fix smaller screen layout.
 </script>

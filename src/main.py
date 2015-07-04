@@ -217,13 +217,29 @@ class ABCreateHandler(webapp2.RequestHandler):
     try:
       date = datetime.strptime(param_date, '%Y-%m-%d').date()
       if ArtBattle.query(ArtBattle.date==date, ancestor=ArtBattle.ANCESTOR_KEY).get():
-        logging.warn("Art-Battle already exists at date '%s'" % date)
+        logging.warn("Art-Battle already exists on date '%s'" % date)
       else:
         ArtBattle(parent=ArtBattle.ANCESTOR_KEY, date=date).put()
         logging.info("Created Art-Battle on '%s'" % date)
     except ValueError:
       logging.warn("Couldn't parse date '%s'" % param_date)
-    self.redirect('/artbattle-edit?date=%s' % param_date)
+    self.redirect('/artbattle/edit?date=%s' % param_date)
+
+class ABDeleteHandler(webapp2.RequestHandler):
+  def delete(self, *args):
+    param_date = self.request.get('date')
+    try:
+      date = datetime.strptime(param_date, '%Y-%m-%d').date()
+      ab = ArtBattle.query(ArtBattle.date==date, ancestor=ArtBattle.ANCESTOR_KEY).get()
+      if ab:
+        ab.key.delete()
+        logging.info("Deleted Art-Battle on '%s'" % date)
+        self.response.status = 200
+      else:
+        logging.warn("Art-Battle not found on date '%s'" % date)
+        self.response.status = 404
+    except ValueError:
+      logging.warn("Couldn't parse date '%s'" % param_date)
 
 class ABEditorHandler(webapp2.RequestHandler):
   def get(self, *args):
@@ -258,8 +274,9 @@ app = webapp2.WSGIApplication([
   ('/', HelloHandler),
   ('/inbox', InboxHandler),
   EmailHandler.mapping(),
-  ('/artbattle-create', ABCreateHandler),
-  ('/artbattle-edit', ABEditorHandler),
+  ('/artbattle/create', ABCreateHandler),
+  ('/artbattle/delete', ABDeleteHandler),
+  ('/artbattle/edit', ABEditorHandler),
   # ('/artbattle/announce', announce),
   # ('/artbattle/set_theme', set_theme),
   # ('/artbattle/create_poll', create_poll),
