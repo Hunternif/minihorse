@@ -88,14 +88,22 @@ TEST_BLOG_ID = 40151
 ART_BATTLE_BLOG_ID = 15543
 BLOG_ID = TEST_BLOG_ID # The value used by the ArtBattle class
 
+
 def get_admin():
   return tabun_api.User(LOGIN, PASSWORD)
+
+class ArtBattleError(Exception):
+  pass
 
 class TabunUser(ndb.Model):
   ANCESTOR_KEY = ndb.Key('TabunUser', 'Tabun users')
   name = ndb.StringProperty()
 
 class Participant(ndb.Model):
+  STATUS_PENDING = 0
+  STATUS_APPROVED = 1
+  STATUS_DECLINED = 2 # Broke some of the rules
+  STATUS_LATE = 3
   number = ndb.IntegerProperty() # assigned via random shuffle before creating a poll
   user = ndb.KeyProperty(kind='TabunUser')
   art_url = ndb.StringProperty()
@@ -103,7 +111,7 @@ class Participant(ndb.Model):
   time = ndb.TimeProperty(auto_now_add=True) # UTC time of submitting artwork
   votes = ndb.IntegerProperty()
   original_email = ndb.KeyProperty(kind='Email') # will be None for manually added participants
-  approved = ndb.BooleanProperty()
+  status = ndb.IntegerProperty(default=STATUS_PENDING)
 
 class ArtBattle(ndb.Model):
   PHASE_UPCOMING = 0
@@ -130,6 +138,12 @@ class ArtBattle(ndb.Model):
 
   ANCESTOR_KEY = ndb.Key('ArtBattle', 'Art-Battles')
   
+  def find_participant_by_number(self, i):
+    for p in self.participants:
+      if p.number == i:
+        return p
+    return None
+  
   def announce(self):
     """Creates a post announcing the upcoming Art-Battle. Not used if the artist decides to post to 'ЯРОК'"""
     logging.info("Announcing Art-Battle %s" % self.date)
@@ -142,7 +156,7 @@ class ArtBattle(ndb.Model):
     self.put()
   
   def prepare(self):
-    """Creates a post for date's Art-Battle. This post will be later updated with the theme."""
+    """Creates a post for the date's Art-Battle. This post will be later updated with the theme."""
     logging.info("Preparing Art-Battle %s" % self.date)
     user = get_admin()
     # TODO: announcement text
@@ -164,6 +178,10 @@ class ArtBattle(ndb.Model):
 
   def create_poll(self):
     """Ends Art-Battle and starts a poll to find the winner."""
+    # Make sure all submissions have been reviewed:
+    for p in self.participants:
+      if p.status == Participant.STATUS_PENDING:
+        raise ArtBattleError('Not all participants have been reviewed')
     logging.info("Creating poll for Art-Battle %s" % self.date)
     user = get_admin()
     # TODO: voting text
@@ -173,25 +191,36 @@ class ArtBattle(ndb.Model):
     i = 1
     for p in random.sample(self.participants, len(self.participants)):
       p.number = i
+      choices.append(u'Участник %d' % i)
       i += 1
-      choices.append(u'Участник %d\n<img src="%s"/>' % i, p.art_preview_url)
     ret = user.add_poll(BLOG_ID, u'Голосование за Арт-Баттл %s' % self.date, choices, text, u'Арт-Баттл, голосвание, %s' % self.date)
     self.poll_post_id = ret[1]
     # TODO check if artworks need approval and then proceed to either PHASE_APPROVAL or PHASE_VOTING
     self.phase = ArtBattle.PHASE_VOTING
     self.put()
+  
+  def update_poll(self):
+    """Update the poll post with late submissions"""
+    # TODO: update_poll
+    pass
 
   def count_votes(self):
     """Ends voting and creates a post with results."""
     logging.info("Ending and counting votes for Art-Battle %s" % self.date)
     user = get_admin()
     post = user.get_post(self.poll_post_id)
+    logging.info(post.poll.items)
     try:
       for i in range(len(post.poll.items)):
-        self.participants[i].votes = post.poll.items[i][2]
+        p = self.find_participant_by_number(i+1)
+        if p:
+          p.votes = post.poll.items[i][2]
+        else:
+          logging.warn('Participant #%d found in vote but not in Art-Battle' % i)
     except AttributeError:
       raise tabun_api.TabunError(msg="Invalid poll post #%d" % self.poll_post_id)
     # TODO: voting result text
+    return
     text = u'Текст результата'
     ret = user.add_post(BLOG_ID, u'Итоги голосования за Арт-Баттл %s' % self.date, text, u'Арт-Баттл, итоги голосования, %s' % self.date)
     self.result_post_id = ret[1]
@@ -296,7 +325,7 @@ class ABCreatePollHandler(ABBaseHandler):
     if ab:
       try:
         ab.create_poll()
-      except tabun_api.TabunError as e:
+      except (tabun_api.TabunError, ArtBattleError) as e:
         self.response.set_status(403)
         self.response.write(e.message)
 
@@ -336,13 +365,54 @@ class ABUpdateHandler(ABBaseHandler):
         cover_art_author = self.request.get('cover_art_author')
         if cover_art_author and cover_art_author != '':
           ab.cover_art_author = TabunUser.get_or_insert(cover_art_author, parent=TabunUser.ANCESTOR_KEY).key
+        else:
+          ab.cover_art_author = None
         ab.put()
       except ValueError as e:
         logging.error(traceback.format_exc())
         self.response.set_status(400)
         self.response.write(e.message)
 
+class ABParticipantAddHandler(ABBaseHandler):
+  def post(self, *args):
+    ab = self.get_ArtBattle()
+    if ab:
+      try:
+        username = self.request.get('username')
+        time = datetime.strptime(self.request.get('time'), '%H:%M').time()
+        art_url = self.request.get('art_url')
+        ab.add_participant(username, art_url)
+        ab.put()
+      except ValueError as e:
+        logging.error(traceback.format_exc())
+        self.response.set_status(400)
+        self.response.write(e.message)
 
+# TODO edit and delete participant
+
+class ABParticipantReviewHandler(ABBaseHandler):
+  def post(self, *args):
+    ab = self.get_ArtBattle()
+    if ab:
+      verdict = self.request.get('verdict')
+      art_url = self.request.get('art_url')
+      logging.info("Reviewing participant '%s' with verdict '%s'" % (art_url, verdict))
+      participant = None
+      for p in ab.participants:
+        if p.art_url == art_url:
+          participant = p
+          break
+      if not participant:
+        logging.warn("Participant not found for art URL '%s'" % art_url)
+      else:
+        if verdict == 'approve':
+          participant.status = Participant.STATUS_APPROVED
+          ab.put()
+        elif verdict == 'decline':
+          participant.status = Participant.STATUS_DECLINED
+          ab.put()
+        else:
+          logging.warn("Unknown review verdict ''" % verdict)
 
 ##################################### Misc #####################################
   
@@ -363,4 +433,6 @@ app = webapp2.WSGIApplication([
   ('/artbattle/set_theme', ABSetThemeHandler),
   ('/artbattle/create_poll', ABCreatePollHandler),
   ('/artbattle/count_votes', ABCountVotesHandler),
+  ('/artbattle/participant/add', ABParticipantAddHandler),
+  ('/artbattle/participant/review', ABParticipantReviewHandler),
 ], debug=True)

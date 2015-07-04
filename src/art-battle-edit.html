@@ -63,7 +63,7 @@
 			<div class="col-sm-offset-2 col-sm-10">
 				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_announce" onclick="create_post('announce')" {% if artbattle.announcement_post_id %}disabled{% endif %}>Announce{% if artbattle.announcement_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
 				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_create_poll" onclick="create_post('create_poll')" {% if artbattle.poll_post_id %}disabled{% endif %}>Create Poll{% if artbattle.poll_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
-				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_count_votes" onclick="create_post('count_votes')" {% if artbattle.results_post_id %}disabled{% endif %}>Count Votes{% if artbattle.results_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
+				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_count_votes" onclick="create_post('count_votes')" {% if artbattle.result_post_id %}disabled{% endif %}>Count Votes{% if artbattle.result_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
 			</div>
 		</div>
 		<div class="form-group">
@@ -86,8 +86,8 @@
 					<div class="col-sm-6"><input type="text" class="form-control" value="{{artbattle.poll_post_id or ''}}" id="poll_post_id"></input></div>
 				</div>
 				<div class="form-group">
-					<label class="col-sm-4 control-label" for="results_post_id">Results post ID</label>
-					<div class="col-sm-6"><input type="text" class="form-control" value="{{artbattle.results_post_id or ''}}" id="results_post_id"></input></div>
+					<label class="col-sm-4 control-label" for="result_post_id">Results post ID</label>
+					<div class="col-sm-6"><input type="text" class="form-control" value="{{artbattle.result_post_id or ''}}" id="result_post_id"></input></div>
 				</div>
 			</div>
 			<div class="form-horizontal col-sm-6">
@@ -129,40 +129,43 @@
 		<h2>Participants</h2>
 		<div class="form-group">
 		<table class="table" id="table_participants">
-			<thead><tr><th>Time</th><th>Name</th><th>Art URL</th><th>Votes</th><th>Preview</th><th>Approve</th></tr></thead>
+			<thead><tr><th>Time</th><th>Name</th><th>Art URL</th><th>No.</th><th>Votes</th><th>Preview</th><th>Approve</th></tr></thead>
 			<tbody>
 				{% for p in artbattle.participants %}
 				<tr>
-					<td class="verta col-sm-1">{{p.time}}</td>
-					<td class="verta col-sm-3"><a href="http://tabun.everypony.ru/profile/{{p.user.id()}}/">{{p.user.id()}}</a></td>
-					<td class="verta col-sm-4"><a href="{{p.art_url}}">{{p.art_url}}</a></td>
-					<td class="verta col-sm-2">{{p.votes or '-'}}</td>
-					<td class="verta col-sm-1"><img src="{{p.art_preview_url}}"></img></td>
-					<td class="verta col-sm-1">
-						{% if p.approved %}
-						<div class="btn-group">
-							<button type="button" class="btn btn-success" style="height:40px"><i class="glyphicon glyphicon-ok"></i></button>
-							<button type="button" class="btn btn-danger" style="height:40px"><i class="glyphicon glyphicon-ban-circle"></i></button>
-						</div>
+					<td class="verta">{{p.time.strftime('%H:%M')}}</td>
+					<td class="verta"><a href="http://tabun.everypony.ru/profile/{{p.user.id()}}/" target="_blank">{{p.user.id()}}</a></td>
+					<td class="verta"><a href="{{p.art_url}}" target="_blank">{{p.art_url}}</a></td>
+					<td class="verta">{{p.number or '-'}}</td>
+					<td class="verta">{% if p.votes==None %}-{% else %}{{p.votes}}{% endif %}</td>
+					<td class="verta"><img src="{{p.art_preview_url}}"></img></td>
+					<td class="verta">
+						{% if p.status == 1 %}
+						<i class="glyphicon glyphicon-ok"></i>
+						{% elif p.status == 2 %}
+						<i class="glyphicon glyphicon-ban-circle"></i>
 						{% else %}
-						<span>Approved</span>
+						<div class="btn-group">
+							<button type="button" class="btn btn-success" style="height:40px" onclick="review_participant('{{p.art_url}}', 'approve')"><i class="glyphicon glyphicon-ok"></i></button>
+							<button type="button" class="btn btn-danger" style="height:40px" onclick="review_participant('{{p.art_url}}', 'decline')"><i class="glyphicon glyphicon-ban-circle"></i></button>
+						</div>
 						{% endif %}
 					</td>
 				</tr>
 				{% endfor %}
-				<tr>
-					<td class="col-sm-1"><input type="time" class="form-control" id="p_time" style="width:100px"></input></td>
-					<td class="col-sm-3"><div class="input-group">
+				<tr onclick="set_participant_time_now()">
+					<td class="col-md-1"><input type="text" class="form-control" id="p_time"></input></td>
+					<td><div class="input-group">
 						<input type="text" class="form-control" id="p_username"></input>
 						<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
 					</div></td>
-					<td class="col-sm-4"><div class="input-group">
+					<td><div class="input-group">
 						<input type="text" class="form-control" id="p_art_url"></input>
 						<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
 					</div></td>
-					<td class="col-sm-2"><button type="button" class="btn btn-default">Add</button></td>
-					<td class="col-sm-1"></td>
-					<td class="col-sm-1"></td>
+					<td><button type="button" class="btn btn-default" onclick="add_participant()">Add</button></td>
+					<td></td>
+					<td></td>
 				</tr>
 			</tbody>
 		</table>
@@ -177,6 +180,11 @@
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 <script src="/static/bootstrap-datepicker.min.js"></script>
 <script type="text/javascript">
+	P_STATUS_PENDING = 0;
+	P_STATUS_APPROVED = 1;
+	P_STATUS_DECLINED = 2; //Broke some of the rules
+	P_STATUS_LATE = 3;
+
 	date = '{% if artbattle %}{{artbattle.date}}{% endif %}';
 	
 	// Prevent creating new Art-Battle on a date of another Art-Battle:
@@ -191,7 +199,8 @@
 	$(document).ready(function () {
 		$('#datepicker').datepicker({
 			format: "yyyy-mm-dd",
-			todayHighlight: true
+			todayHighlight: true,
+			weekStart: 1
 		});
 		checkCreateButtonEnabled();
 	});
@@ -214,10 +223,13 @@
 		});
 	}
 	
-	function create_post(kind) {
+	// A convenience function for making AJAX 'POST' requests.
+	// Reload page on success, show alert on error.
+	function post(url, data) {
 		$.ajax({
-			url: kind + '?date=' + date,
+			url: url,
 			type: 'POST',
+			data: data,
 			success: function(result) {
 				location.reload();
 			},
@@ -229,27 +241,42 @@
 		});
 	}
 	
+	function create_post(kind) {
+		post(kind, {date: date})
+	}
+	
 	function save() {
-		$.ajax({
-			url: 'update?date=' + date,
-			type: 'POST',
-			data: {
-				announcement_post_id: $('#announcement_post_id').val(),
-				battle_post_id: $('#battle_post_id').val(),
-				poll_post_id: $('#poll_post_id').val(),
-				result_post_id: $('#result_post_id').val(),
-				cover_art_url: $('#cover_art_url').val(),
-				cover_art_author: $('#cover_art_author').val(),
-				cover_art_source_url: $('#cover_art_source_url').val()
-			},
-			success: function(result){
-				location.reload();
-			},
-			error: function(result) {
-				if (result.responseText) {
-					alert(result.responseText);
-				}
-			}
+		post('update', {
+			date: date,
+			announcement_post_id: $('#announcement_post_id').val(),
+			battle_post_id: $('#battle_post_id').val(),
+			poll_post_id: $('#poll_post_id').val(),
+			result_post_id: $('#result_post_id').val(),
+			cover_art_url: $('#cover_art_url').val(),
+			cover_art_author: $('#cover_art_author').val(),
+			cover_art_source_url: $('#cover_art_source_url').val()
+		});
+	}
+	
+	function add_participant() {
+		post('participant/add', {
+			date: date,
+			time: $('#p_time').val(),
+			username: $('#p_username').val(),
+			art_url: $('#p_art_url').val()
+		});
+	}
+	function set_participant_time_now() {
+		if ($('#p_time').val() == '') {
+			now = new Date();
+			$('#p_time').val(now.getHours() + ':' + now.getMinutes());
+		}
+	}
+	function review_participant(art_url, verdict) {
+		post('participant/review', {
+			date: date,
+			art_url: art_url,
+			verdict: verdict
 		});
 	}
 	
