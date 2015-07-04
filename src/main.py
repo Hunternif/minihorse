@@ -110,7 +110,7 @@ class Participant(ndb.Model):
   art_url = ndb.StringProperty()
   art_preview_url = ndb.StringProperty()
   time = ndb.TimeProperty(auto_now_add=True) # UTC time of submitting artwork
-  votes = ndb.IntegerProperty()
+  votes = ndb.IntegerProperty(default=0)
   original_email = ndb.KeyProperty(kind='Email') # will be None for manually added participants
   status = ndb.IntegerProperty(default=STATUS_PENDING)
 
