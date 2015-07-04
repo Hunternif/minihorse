@@ -22,11 +22,10 @@
 	<div class="page-header">
 	<div class="form-horizontal" id="form_manager">
 		<div class="form-group">
-			<div class="form-horizontal col-md-6">
-				<input type="hidden" name="date" id="input_open_date"/>
+			<div class="form-horizontal col-sm-6">
 				<div class="form-group">
-					<label for="dropdown_date" class="col-md-4 control-label">Open date</label>
-					<div class="dropdown col-md-4">
+					<label for="dropdown_date" class="col-sm-4 control-label">Open date</label>
+					<div class="dropdown col-sm-5">
 						<button class="btn btn-default dropdown-toggle" type="button" id="dropdownMenu_date" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" style="width:100%" {% if not dates %}disabled{% endif %}>
 							<span id="dropdownMenu_date_label" style="float:left">Select date...</span>
 							<span class="caret" style="float:right; margin-top:0.5em"></span>
@@ -39,121 +38,135 @@
 					</div>
 				</div>
 			</div>
-			<form class="form-horizontal col-md-6" method="POST" action="create">
+			<form class="form-horizontal col-sm-6" method="POST" action="create">
 				<div class="form-group">
-					<label for="datepicker" class="col-md-4 control-label">Create new</label>
-					<div class="col-md-6">
+					<label for="datepicker" class="col-sm-4 control-label">Create new</label>
+					<div class="col-sm-6">
 						<div class="input-group">
 						<input type="text" class="form-control" id="datepicker" name="date" placeholder="Set date..."></input>
 						<span class="input-group-addon"><i class="glyphicon glyphicon-calendar"></i></span>
 					</div></div>
-					<input type="submit" class="btn btn-success col-md-2" id="btn_create" value="Create"></input>
+					<input type="submit" class="btn btn-success col-sm-2" id="btn_create" value="Create"></input>
 				</div>
 			</form>
 		</div>
 	</div></div>
-	{% if date %}
+	{% if artbattle %}
 	<div class="form-horizontal" id="form_editor">
-		<h1>Art-Battle {{date}}</h1>
-		<hr>
 		<div class="form-group">
-			<div class="col-md-offset-2 col-md-10">
-				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_announce">Announce</button>
-				<button type="button" class="btn btn-danger" id="btn_delete" onclick="deleteDate()">Delete</button>
+			<h1>Art-Battle {{artbattle.date}}
+				<button type="button" class="btn btn-danger col-sm-1" id="btn_delete" onclick="deleteDate()" style="float:right">Delete</button>
+			</h1>
+		</div>
+		<hr class="form-group">
+		<div class="form-group">
+			<div class="col-sm-offset-2 col-sm-10">
+				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_announce" onclick="create_post('announce')" {% if artbattle.announcement_post_id %}disabled{% endif %}>Announce{% if artbattle.announcement_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
+				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_create_poll" onclick="create_post('create_poll')" {% if artbattle.poll_post_id %}disabled{% endif %}>Create Poll{% if artbattle.poll_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
+				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_count_votes" onclick="create_post('count_votes')" {% if artbattle.results_post_id %}disabled{% endif %}>Count Votes{% if artbattle.results_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
 			</div>
 		</div>
 		<div class="form-group">
-			<label class="col-md-2 control-label" for="theme">Theme</label>
-			<div class="col-md-9"><input type="text" class="form-control" value="{{theme}}" id="theme"></input></div>
-			<button type="button" class="btn btn-primary col-md-1" id="btn_theme">Set</button>
+			<label class="col-sm-2 control-label" for="theme">Theme</label>
+			<div class="col-sm-9"><input type="text" class="form-control" value="{{artbattle.theme or ''}}" id="theme"></input></div>
+			<button type="button" class="btn btn-primary col-sm-1" id="btn_theme">Set</button>
 		</div>
-		<hr>
 		<div class="form-group">
-			<div class="form-horizontal col-md-6">
+			<div class="form-horizontal col-sm-6">
 				<div class="form-group">
-					<label class="col-md-4 control-label" for="announcement_post_id">Announcement post ID</label>
-					<div class="col-md-6"><input type="text" class="form-control" value="{{announcement_post_id}}" id="announcement_post_id"></input></div>
+					<label class="col-sm-4 control-label" for="announcement_post_id">Announcement post ID</label>
+					<div class="col-sm-6"><input type="text" class="form-control" value="{{artbattle.announcement_post_id or ''}}" id="announcement_post_id"></input></div>
 				</div>
 				<div class="form-group">
-					<label class="col-md-4 control-label" for="battle_post_id">Battle post ID</label>
-					<div class="col-md-6"><input type="text" class="form-control" value="{{battle_post_id}}" id="battle_post_id"></input></div>
+					<label class="col-sm-4 control-label" for="battle_post_id">Battle post ID</label>
+					<div class="col-sm-6"><input type="text" class="form-control" value="{{artbattle.battle_post_id or ''}}" id="battle_post_id"></input></div>
 				</div>
 				<div class="form-group">
-					<label class="col-md-4 control-label" for="poll_post_id">Poll post ID</label>
-					<div class="col-md-6"><input type="text" class="form-control" value="{{poll_post_id}}" id="poll_post_id"></input></div>
+					<label class="col-sm-4 control-label" for="poll_post_id">Poll post ID</label>
+					<div class="col-sm-6"><input type="text" class="form-control" value="{{artbattle.poll_post_id or ''}}" id="poll_post_id"></input></div>
 				</div>
 				<div class="form-group">
-					<label class="col-md-4 control-label" for="results_post_id">Results post ID</label>
-					<div class="col-md-6"><input type="text" class="form-control" value="{{results_post_id}}" id="results_post_id"></input></div>
+					<label class="col-sm-4 control-label" for="results_post_id">Results post ID</label>
+					<div class="col-sm-6"><input type="text" class="form-control" value="{{artbattle.results_post_id or ''}}" id="results_post_id"></input></div>
 				</div>
 			</div>
-			<div class="form-horizontal col-md-6">
+			<div class="form-horizontal col-sm-6">
 				<div class="form-group">
-					<label class="col-md-4 control-label" for="cover_art_url">Cover art URL</label>
-					<div class="col-md-6">
+					<label class="col-sm-4 control-label" for="cover_art_url">Cover art URL</label>
+					<div class="col-sm-6">
 						<div class="input-group">
-							<input type="text" class="form-control" value="{{cover_art_url}}" id="cover_art_url"></input>
+							<input type="text" class="form-control" value="{{artbattle.cover_art_url or ''}}" id="cover_art_url"></input>
 							<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
 						</div>
 					</div>
 				</div>
 				<div class="form-group">
-					<label class="col-md-4 control-label" for="cover_art_author">Cover art author</label>
-					<div class="col-md-6">
+					<label class="col-sm-4 control-label" for="cover_art_author">Cover art author</label>
+					<div class="col-sm-6">
 						<div class="input-group">
-							<input type="text" class="form-control" value="{{cover_art_author}}" id="cover_art_author"></input>
+							<input type="text" class="form-control" value="{% if artbattle.cover_art_author %}{{artbattle.cover_art_author.id()}}{% endif %}" id="cover_art_author"></input>
 							<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
 						</div>
 					</div>
 				</div>
 				<div class="form-group">
-					<label class="col-md-4 control-label" for="cover_art_source">Cover art source</label>
-					<div class="col-md-6">
+					<label class="col-sm-4 control-label" for="cover_art_source_url">Cover art source</label>
+					<div class="col-sm-6">
 						<div class="input-group">
-							<input type="text" class="form-control" value="{{cover_art_source}}" id="cover_art_source"></input>
+							<input type="text" class="form-control" value="{{artbattle.cover_art_source_url or ''}}" id="cover_art_source_url"></input>
 							<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
 						</div>
 					</div>
 				</div>
 				<div class="form-group">
-					<div class="col-md-offset-4 col-md-6">
-						<button type="button" class="btn btn-default" id="btn_save">Save</button>
+					<div class="col-sm-offset-4 col-sm-6">
+						<button type="button" class="btn btn-default" id="btn_save" onclick='save()'>Save</button>
 					</div>
 				</div>
 			</div>
 		</div>
-		<hr>
+		<hr class="form-group">
 		<h2>Participants</h2>
+		<div class="form-group">
 		<table class="table" id="table_participants">
-			<thead><tr><th>Time</th><th>Name</th><th>Art URL</th><th>Preview</th><th>Approve</th></tr></thead>
+			<thead><tr><th>Time</th><th>Name</th><th>Art URL</th><th>Votes</th><th>Preview</th><th>Approve</th></tr></thead>
 			<tbody>
+				{% for p in artbattle.participants %}
 				<tr>
-					<td class="verta">21:47</td>
-					<td class="verta">gor1ck</td>
-					<td class="verta">http://i.imgur.com/asdfsdfrd.jpg</td>
-					<td><img src="https://i.imgur.com/AoE9fwKs.png"></img></td>
-					<td class="verta">
+					<td class="verta col-sm-1">{{p.time}}</td>
+					<td class="verta col-sm-3"><a href="http://tabun.everypony.ru/profile/{{p.user.id()}}/">{{p.user.id()}}</a></td>
+					<td class="verta col-sm-4"><a href="{{p.art_url}}">{{p.art_url}}</a></td>
+					<td class="verta col-sm-2">{{p.votes or '-'}}</td>
+					<td class="verta col-sm-1"><img src="{{p.art_preview_url}}"></img></td>
+					<td class="verta col-sm-1">
+						{% if p.approved %}
 						<div class="btn-group">
 							<button type="button" class="btn btn-success" style="height:40px"><i class="glyphicon glyphicon-ok"></i></button>
 							<button type="button" class="btn btn-danger" style="height:40px"><i class="glyphicon glyphicon-ban-circle"></i></button>
 						</div>
+						{% else %}
+						<span>Approved</span>
+						{% endif %}
 					</td>
 				</tr>
+				{% endfor %}
 				<tr>
-					<td class="col-md-1"><input type="time" class="form-control" id="p_time"></input></td>
-					<td class="col-md-3"><div class="input-group">
+					<td class="col-sm-1"><input type="time" class="form-control" id="p_time" style="width:100px"></input></td>
+					<td class="col-sm-3"><div class="input-group">
 						<input type="text" class="form-control" id="p_username"></input>
 						<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
 					</div></td>
-					<td class="col-md-5"><div class="input-group">
+					<td class="col-sm-4"><div class="input-group">
 						<input type="text" class="form-control" id="p_art_url"></input>
 						<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
 					</div></td>
-					<td class="col-md-1"><button type="button" class="btn btn-default">Add</button></td>
-					<td class="col-md-1"></td>
+					<td class="col-sm-2"><button type="button" class="btn btn-default">Add</button></td>
+					<td class="col-sm-1"></td>
+					<td class="col-sm-1"></td>
 				</tr>
 			</tbody>
 		</table>
+		</div>
 	</div>
 	{% endif %}
 </div>
@@ -164,7 +177,7 @@
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 <script src="/static/bootstrap-datepicker.min.js"></script>
 <script type="text/javascript">
-	date = '{{date}}';
+	date = '{% if artbattle %}{{artbattle.date}}{% endif %}';
 	
 	// Prevent creating new Art-Battle on a date of another Art-Battle:
 	function checkCreateButtonEnabled() {
@@ -196,7 +209,46 @@
 			url: 'delete?date=' + date,
 			type: 'DELETE',
 			success: function(result) {
+				location.href = 'edit';
+			}
+		});
+	}
+	
+	function create_post(kind) {
+		$.ajax({
+			url: kind + '?date=' + date,
+			type: 'POST',
+			success: function(result) {
 				location.reload();
+			},
+			error: function(result) {
+				if (result.responseText) {
+					alert(result.responseText);
+				}
+			}
+		});
+	}
+	
+	function save() {
+		$.ajax({
+			url: 'update?date=' + date,
+			type: 'POST',
+			data: {
+				announcement_post_id: $('#announcement_post_id').val(),
+				battle_post_id: $('#battle_post_id').val(),
+				poll_post_id: $('#poll_post_id').val(),
+				result_post_id: $('#result_post_id').val(),
+				cover_art_url: $('#cover_art_url').val(),
+				cover_art_author: $('#cover_art_author').val(),
+				cover_art_source_url: $('#cover_art_source_url').val()
+			},
+			success: function(result){
+				location.reload();
+			},
+			error: function(result) {
+				if (result.responseText) {
+					alert(result.responseText);
+				}
 			}
 		});
 	}

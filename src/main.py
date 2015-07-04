@@ -11,6 +11,7 @@ import jinja2
 import logging
 import os
 import random
+import traceback
 import webapp2
 
 import fix_libs
@@ -91,6 +92,7 @@ def get_admin():
   return tabun_api.User(LOGIN, PASSWORD)
 
 class TabunUser(ndb.Model):
+  ANCESTOR_KEY = ndb.Key('TabunUser', 'Tabun users')
   name = ndb.StringProperty()
 
 class Participant(ndb.Model):
@@ -121,10 +123,10 @@ class ArtBattle(ndb.Model):
   cover_art_author = ndb.KeyProperty(kind='TabunUser') # used if cover art is custom-made by a user
   cover_art_source_url = ndb.StringProperty() # used if cover art is a placeholder
   
-  announcement_post_id = ndb.StringProperty() # the pre-announcement a couple of days before
-  battle_post_id = ndb.StringProperty() # the post in which the theme is revealed
-  poll_post_id = ndb.StringProperty()
-  result_post_id = ndb.StringProperty()
+  announcement_post_id = ndb.IntegerProperty() # the pre-announcement a couple of days before
+  battle_post_id = ndb.IntegerProperty() # the post in which the theme is revealed
+  poll_post_id = ndb.IntegerProperty()
+  result_post_id = ndb.IntegerProperty()
 
   ANCESTOR_KEY = ndb.Key('ArtBattle', 'Art-Battles')
   
@@ -136,9 +138,8 @@ class ArtBattle(ndb.Model):
     text = u'Текст объявления Арт-Баттла'
     ret = user.add_post(BLOG_ID, u'Объявление Арт-Баттла %s' % self.date, text, u'Арт-Баттл, объявление, конкурс, %s' % self.date)
     self.announcement_post_id = ret[1]
-    self.phase = PHASE_ANNOUNCED
+    self.phase = ArtBattle.PHASE_ANNOUNCED
     self.put()
-    # TODO: handle exceptions
   
   def prepare(self):
     """Creates a post for date's Art-Battle. This post will be later updated with the theme."""
@@ -148,7 +149,7 @@ class ArtBattle(ndb.Model):
     text = u'Текст Арт-Баттла без темы'
     ret = user.add_post(BLOG_ID, u'Арт-Баттл %s' % self.date, text, u'Арт-Баттл, конкурс, %s' % self.date)
     self.battle_post_id = ret[1]
-    self.phase = PHASE_PREPARED
+    self.phase = ArtBattle.PHASE_PREPARED
     self.put()
 
   def set_theme(self, theme):
@@ -158,7 +159,7 @@ class ArtBattle(ndb.Model):
     # TODO: announcement text + theme
     text = u'Текст Арт-Баттла с темой'
     user.edit_post(self.battle_post_id, BLOG_ID, u'Арт-Баттл %s' % self.date, text, u'Арт-Баттл, конкурс, %s' % self.date)
-    self.phase = PHASE_BATTLE_ON
+    self.phase = ArtBattle.PHASE_BATTLE_ON
     self.put()
 
   def create_poll(self):
@@ -177,7 +178,7 @@ class ArtBattle(ndb.Model):
     ret = user.add_poll(BLOG_ID, u'Голосование за Арт-Баттл %s' % self.date, choices, text, u'Арт-Баттл, голосвание, %s' % self.date)
     self.poll_post_id = ret[1]
     # TODO check if artworks need approval and then proceed to either PHASE_APPROVAL or PHASE_VOTING
-    self.phase = PHASE_VOTING
+    self.phase = ArtBattle.PHASE_VOTING
     self.put()
 
   def count_votes(self):
@@ -185,21 +186,24 @@ class ArtBattle(ndb.Model):
     logging.info("Ending and counting votes for Art-Battle %s" % self.date)
     user = get_admin()
     post = user.get_post(self.poll_post_id)
-    for i in range(len(post.poll.items)):
-      self.participants[i].votes = post.poll.items[i][2]
+    try:
+      for i in range(len(post.poll.items)):
+        self.participants[i].votes = post.poll.items[i][2]
+    except AttributeError:
+      raise tabun_api.TabunError(msg="Invalid poll post #%d" % self.poll_post_id)
     # TODO: voting result text
     text = u'Текст результата'
     ret = user.add_post(BLOG_ID, u'Итоги голосования за Арт-Баттл %s' % self.date, text, u'Арт-Баттл, итоги голосования, %s' % self.date)
     self.result_post_id = ret[1]
     # TODO: send message to winner(s)
-    self.phase = PHASE_FINISHED
+    self.phase = ArtBattle.PHASE_FINISHED
     self.put()
   
   def add_participant(self, username, art_url, original_email=None):
     """Add a participant to this Art-Battle and format their artwork."""
-    user = TabunUser.get_or_insert(id=username)
+    user = TabunUser.get_or_insert(username, parent=TabunUser.ANCESTOR_KEY)
     # TODO: resize image and upload to imgur.com (if needed)
-    p = Participant(user=user, art_url=art_url, original_email=original_email)
+    p = Participant(user=user.key, art_url=art_url, original_email=original_email)
     # Assuming an imgur.com URL, the preview URL is "....s.jpg/png"
     p.art_preview_url = art_url[:-4] + 's' + art_url[-4:]
     self.participants.append(p)
@@ -211,56 +215,133 @@ class ArtBattleState(ndb.Model):
 
 #################################### Editor ####################################
 
-class ABCreateHandler(webapp2.RequestHandler):
-  def post(self, *args):
+class ABBaseHandler(webapp2.RequestHandler):
+  def get_date(self):
     param_date = self.request.get('date')
     try:
-      date = datetime.strptime(param_date, '%Y-%m-%d').date()
-      if ArtBattle.query(ArtBattle.date==date, ancestor=ArtBattle.ANCESTOR_KEY).get():
+      return datetime.strptime(param_date, '%Y-%m-%d').date()
+    except:
+      logging.warn("Couldn't parse date '%s'" % param_date)
+      return None
+  def get_ArtBattle(self):
+    date = self.get_date()
+    if date:
+      ab = ArtBattle.query(ArtBattle.date==date, ancestor=ArtBattle.ANCESTOR_KEY).get()
+      if not ab:
+        logging.warn("Art-Battle not found on date '%s'" % date)
+      return ab
+    return None
+
+
+class ABCreateHandler(ABBaseHandler):
+  def post(self, *args):
+    date = self.get_date()
+    if date:
+      if self.get_ArtBattle():
         logging.warn("Art-Battle already exists on date '%s'" % date)
       else:
         ArtBattle(parent=ArtBattle.ANCESTOR_KEY, date=date).put()
         logging.info("Created Art-Battle on '%s'" % date)
-    except ValueError:
-      logging.warn("Couldn't parse date '%s'" % param_date)
-    self.redirect('/artbattle/edit?date=%s' % param_date)
+      self.redirect('/artbattle/edit?date=%s' % date)
+    else:
+      self.redirect('/artbattle/edit')
 
-class ABDeleteHandler(webapp2.RequestHandler):
+class ABDeleteHandler(ABBaseHandler):
   def delete(self, *args):
-    param_date = self.request.get('date')
-    try:
-      date = datetime.strptime(param_date, '%Y-%m-%d').date()
-      ab = ArtBattle.query(ArtBattle.date==date, ancestor=ArtBattle.ANCESTOR_KEY).get()
-      if ab:
-        ab.key.delete()
-        logging.info("Deleted Art-Battle on '%s'" % date)
-        self.response.status = 200
-      else:
-        logging.warn("Art-Battle not found on date '%s'" % date)
-        self.response.status = 404
-    except ValueError:
-      logging.warn("Couldn't parse date '%s'" % param_date)
+    ab = self.get_ArtBattle()
+    if ab:
+      ab.key.delete()
+      logging.info("Deleted Art-Battle on '%s'" % ab.date)
+    else:
+      logging.warn("Art-Battle not found on date")
+      self.response.set_status(404)
 
-class ABEditorHandler(webapp2.RequestHandler):
+class ABEditorHandler(ABBaseHandler):
   def get(self, *args):
     template = JINJA_ENVIRONMENT.get_template('art-battle-edit.html')
     template_values = {}
     # Read list of dates:
     dates = ArtBattle.query(ancestor=ArtBattle.ANCESTOR_KEY).order(ArtBattle.date).fetch(projection=ArtBattle.date)
     template_values['dates'] = dates
-    # Read request date:
-    param_date = self.request.get('date')
-    try:
-      date = datetime.strptime(param_date, '%Y-%m-%d').date()
-      ab = ArtBattle.query(ArtBattle.date==date, ancestor=ArtBattle.ANCESTOR_KEY).get()
-      if ab:
-        template_values['date'] = date
-        template_values['artbattle'] = ab
-      else:
-        logging.warn('No Art-Battle found for date %s' % date)
-    except ValueError:
-      logging.warn("Couldn't parse date '%s'" % param_date)
+    # Read Art-Battle:
+    ab = self.get_ArtBattle()
+    if ab:
+      template_values['artbattle'] = ab
     self.response.write(template.render(template_values))
+
+class ABAnnounceHandler(ABBaseHandler):
+  def post(self, *args):
+    ab = self.get_ArtBattle()
+    if ab:
+      try:
+        ab.announce()
+      except tabun_api.TabunError as e:
+        self.response.set_status(403)
+        self.response.write(e.message)
+
+class ABSetThemeHandler(ABBaseHandler):
+  def post(self, *args):
+    theme = self.request.get('theme')
+    ab = self.get_ArtBattle()
+    if ab:
+      try:
+        ab.set_theme(theme)
+      except tabun_api.TabunError as e:
+        self.response.set_status(403)
+        self.response.write(e.message)
+
+class ABCreatePollHandler(ABBaseHandler):
+  def post(self, *args):
+    ab = self.get_ArtBattle()
+    if ab:
+      try:
+        ab.create_poll()
+      except tabun_api.TabunError as e:
+        self.response.set_status(403)
+        self.response.write(e.message)
+
+class ABCountVotesHandler(ABBaseHandler):
+  def post(self, *args):
+    ab = self.get_ArtBattle()
+    if ab:
+      try:
+        ab.count_votes()
+      except tabun_api.TabunError as e:
+        self.response.set_status(403)
+        self.response.write(e.message)
+
+class ABUpdateHandler(ABBaseHandler):
+  def update_field(self, ab, field, is_int=True):
+    """Updates ArtBattle's field with str or int data from request.
+       If field is empty, sets it to None."""
+    field_value = self.request.get(field)
+    if not field_value or field_value=='':
+      setattr(ab, field, None)
+    else:
+      if is_int:
+        setattr(ab, field, int(field_value))
+      else:
+        setattr(ab, field, field_value)
+  
+  def post(self, *args):
+    ab = self.get_ArtBattle()
+    if ab:
+      try:
+        self.update_field(ab, 'announcement_post_id', True)
+        self.update_field(ab, 'battle_post_id', True)
+        self.update_field(ab, 'poll_post_id', True)
+        self.update_field(ab, 'result_post_id', True)
+        self.update_field(ab, 'cover_art_url')
+        self.update_field(ab, 'cover_art_source_url')
+        cover_art_author = self.request.get('cover_art_author')
+        if cover_art_author and cover_art_author != '':
+          ab.cover_art_author = TabunUser.get_or_insert(cover_art_author, parent=TabunUser.ANCESTOR_KEY).key
+        ab.put()
+      except ValueError as e:
+        logging.error(traceback.format_exc())
+        self.response.set_status(400)
+        self.response.write(e.message)
+
 
 
 ##################################### Misc #####################################
@@ -277,8 +358,9 @@ app = webapp2.WSGIApplication([
   ('/artbattle/create', ABCreateHandler),
   ('/artbattle/delete', ABDeleteHandler),
   ('/artbattle/edit', ABEditorHandler),
-  # ('/artbattle/announce', announce),
-  # ('/artbattle/set_theme', set_theme),
-  # ('/artbattle/create_poll', create_poll),
-  # ('/artbattle/count_votes', count_votes),
+  ('/artbattle/update', ABUpdateHandler),
+  ('/artbattle/announce', ABAnnounceHandler),
+  ('/artbattle/set_theme', ABSetThemeHandler),
+  ('/artbattle/create_poll', ABCreatePollHandler),
+  ('/artbattle/count_votes', ABCountVotesHandler),
 ], debug=True)
