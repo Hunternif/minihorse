@@ -129,15 +129,14 @@
 		<h2>Participants</h2>
 		<div class="form-group">
 		<table class="table" id="table_participants">
-			<thead><tr><th>Time</th><th>Name</th><th>Art URL</th><th>No.</th><th>Votes</th><th>Preview</th><th>Approve</th></tr></thead>
+			<thead><tr><th>Time</th><th>Name</th><th>Art URL</th><th>No.</th><th>Preview</th><th>Approve</th><th>Votes</th></tr></thead>
 			<tbody>
 				{% for p in artbattle.participants %}
 				<tr>
-					<td class="verta">{{p.time.strftime('%H:%M')}}</td>
+					<td class="verta col-md-1">{{p.time.strftime('%H:%M')}}</td>
 					<td class="verta"><a href="http://tabun.everypony.ru/profile/{{p.user.id()}}/" target="_blank">{{p.user.id()}}</a></td>
 					<td class="verta"><a href="{{p.art_url}}" target="_blank">{{p.art_url}}</a></td>
 					<td class="verta">{{p.number or '-'}}</td>
-					<td class="verta">{% if p.votes==None %}-{% else %}{{p.votes}}{% endif %}</td>
 					<td class="verta"><img src="{{p.art_preview_url}}"></img></td>
 					<td class="verta">
 						{% if p.status == 1 %}
@@ -151,10 +150,19 @@
 						</div>
 						{% endif %}
 					</td>
+					<td class="verta col-md-2">{% if p.votes==None %}-{% elif artbattle.total_votes %}
+						<div class="progress">
+							{% set percent = p.votes / artbattle.total_votes * 100 %}
+							<div class="progress-bar progress-bar-success" role="progressbar" aria-valuenow="{{p.votes}}" aria-valuemin="0" aria-valuemax="{{artbattle.total_votes}}" style="width:{{percent}}%">
+							<span>{{p.votes}}</span>
+							</div>
+						</div>
+						{% else %}{{p.votes}}{% endif %}
+					</td>
 				</tr>
 				{% endfor %}
 				<tr onclick="set_participant_time_now()">
-					<td class="col-md-1"><input type="text" class="form-control" id="p_time"></input></td>
+					<td><input type="text" class="form-control" id="p_time"></input></td>
 					<td><div class="input-group">
 						<input type="text" class="form-control" id="p_username"></input>
 						<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>

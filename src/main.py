@@ -126,6 +126,7 @@ class ArtBattle(ndb.Model):
   date = ndb.DateProperty() # No two Art-Battles may have the same date!
   theme = ndb.StringProperty()
   participants = ndb.StructuredProperty(Participant, repeated=True)
+  total_votes = ndb.IntegerProperty()
   
   cover_art_url = ndb.StringProperty()
   cover_art_author = ndb.KeyProperty(kind='TabunUser') # used if cover art is custom-made by a user
@@ -209,8 +210,8 @@ class ArtBattle(ndb.Model):
     logging.info("Ending and counting votes for Art-Battle %s" % self.date)
     user = get_admin()
     post = user.get_post(self.poll_post_id)
-    logging.info(post.poll.items)
     try:
+      self.total_votes = post.poll.total
       for i in range(len(post.poll.items)):
         p = self.find_participant_by_number(i+1)
         if p:
@@ -220,7 +221,6 @@ class ArtBattle(ndb.Model):
     except AttributeError:
       raise tabun_api.TabunError(msg="Invalid poll post #%d" % self.poll_post_id)
     # TODO: voting result text
-    return
     text = u'Текст результата'
     ret = user.add_post(BLOG_ID, u'Итоги голосования за Арт-Баттл %s' % self.date, text, u'Арт-Баттл, итоги голосования, %s' % self.date)
     self.result_post_id = ret[1]
