@@ -125,6 +125,8 @@ class ArtBattle(ndb.Model):
   battle_post_id = ndb.StringProperty() # the post in which the theme is revealed
   poll_post_id = ndb.StringProperty()
   result_post_id = ndb.StringProperty()
+
+  ANCESTOR_KEY = ndb.Key('ArtBattle', 'Art-Battles')
   
   def announce(self):
     """Creates a post announcing the upcoming Art-Battle. Not used if the artist decides to post to 'ЯРОК'"""
@@ -214,10 +216,10 @@ class ABCreateHandler(webapp2.RequestHandler):
     param_date = self.request.get('date')
     try:
       date = datetime.strptime(param_date, '%Y-%m-%d').date()
-      if ArtBattle.query(ArtBattle.date==date).get():
+      if ArtBattle.query(ArtBattle.date==date, ancestor=ArtBattle.ANCESTOR_KEY).get():
         logging.warn("Art-Battle already exists at date '%s'" % date)
       else:
-        ArtBattle(date=date).put()
+        ArtBattle(parent=ArtBattle.ANCESTOR_KEY, date=date).put()
         logging.info("Created Art-Battle on '%s'" % date)
     except ValueError:
       logging.warn("Couldn't parse date '%s'" % param_date)
@@ -226,14 +228,15 @@ class ABCreateHandler(webapp2.RequestHandler):
 class ABEditorHandler(webapp2.RequestHandler):
   def get(self, *args):
     template = JINJA_ENVIRONMENT.get_template('art-battle-edit.html')
-    dates = ArtBattle.query().order(ArtBattle.date).fetch(projection=ArtBattle.date)
-    template_values = {
-      'dates': dates,
-    }
+    template_values = {}
+    # Read list of dates:
+    dates = ArtBattle.query(ancestor=ArtBattle.ANCESTOR_KEY).order(ArtBattle.date).fetch(projection=ArtBattle.date)
+    template_values['dates'] = dates
+    # Read request date:
     param_date = self.request.get('date')
     try:
       date = datetime.strptime(param_date, '%Y-%m-%d').date()
-      ab = ArtBattle.query(ArtBattle.date==date).get()
+      ab = ArtBattle.query(ArtBattle.date==date, ancestor=ArtBattle.ANCESTOR_KEY).get()
       if ab:
         template_values['date'] = date
         template_values['artbattle'] = ab
