@@ -1,18 +1,25 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from datetime import tzinfo, timedelta
+from datetime import datetime, tzinfo, timedelta
 
 from google.appengine.api.mail import InboundEmailMessage
 from google.appengine.ext.webapp.mail_handlers import InboundMailHandler
 from google.appengine.ext import ndb
 
+import jinja2
 import logging
+import os
 import random
 import webapp2
 
 import fix_libs
 import tabun_api
+
+JINJA_ENVIRONMENT = jinja2.Environment(
+  loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
+  extensions=['jinja2.ext.autoescape'],
+  autoescape=True)
 
 
 ##################################### Email ####################################
@@ -163,7 +170,7 @@ class ArtBattle(ndb.Model):
     i = 1
     for p in random.sample(self.participants, len(self.participants)):
       p.number = i
-      i++
+      i += 1
       choices.append(u'Участник %d\n<img src="%s"/>' % i, p.art_preview_url)
     ret = user.add_poll(BLOG_ID, u'Голосование за Арт-Баттл %s' % self.date, choices, text, u'Арт-Баттл, голосвание, %s' % self.date)
     self.poll_post_id = ret[1]
@@ -200,6 +207,42 @@ class ArtBattleState(ndb.Model):
   current_battle = ndb.KeyProperty(kind='ArtBattle')
 
 
+#################################### Editor ####################################
+
+class ABCreateHandler(webapp2.RequestHandler):
+  def post(self, *args):
+    param_date = self.request.get('date')
+    try:
+      date = datetime.strptime(param_date, '%Y-%m-%d').date()
+      if ArtBattle.query(ArtBattle.date==date).get():
+        logging.warn("Art-Battle already exists at date '%s'" % date)
+      else:
+        ArtBattle(date=date).put()
+        logging.info("Created Art-Battle on '%s'" % date)
+    except ValueError:
+      logging.warn("Couldn't parse date '%s'" % param_date)
+    self.redirect('/artbattle-edit?date=%s' % param_date)
+
+class ABEditorHandler(webapp2.RequestHandler):
+  def get(self, *args):
+    template = JINJA_ENVIRONMENT.get_template('art-battle-edit.html')
+    dates = ArtBattle.query().order(ArtBattle.date).fetch(projection=ArtBattle.date)
+    template_values = {
+      'dates': dates,
+    }
+    param_date = self.request.get('date')
+    try:
+      date = datetime.strptime(param_date, '%Y-%m-%d').date()
+      ab = ArtBattle.query(ArtBattle.date==date).get()
+      if ab:
+        template_values['date'] = date
+        template_values['artbattle'] = ab
+      else:
+        logging.warn('No Art-Battle found for date %s' % date)
+    except ValueError:
+      logging.warn("Couldn't parse date '%s'" % param_date)
+    self.response.write(template.render(template_values))
+
 
 ##################################### Misc #####################################
   
@@ -212,6 +255,8 @@ app = webapp2.WSGIApplication([
   ('/', HelloHandler),
   ('/inbox', InboxHandler),
   EmailHandler.mapping(),
+  ('/artbattle-create', ABCreateHandler),
+  ('/artbattle-edit', ABEditorHandler),
   # ('/artbattle/announce', announce),
   # ('/artbattle/set_theme', set_theme),
   # ('/artbattle/create_poll', create_poll),

@@ -1,33 +1,16 @@
 <html>
 <head>
-	<title>{title}</title>
-	<script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
+	<title>Art-Battle Editor</title>
 	
 	<!-- Latest compiled and minified CSS -->
 	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
 
 	<!-- Optional theme -->
 	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css">
-
-	<!-- Latest compiled and minified JavaScript -->
-	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 	
 	<!-- Date picker -->
-	<link id="bsdp-css" href="css/datepicker3.css" rel="stylesheet">
-	<script src="js/bootstrap-datepicker.min.js"></script>
+	<link id="bsdp-css" href="static/datepicker3.css" rel="stylesheet">
 	
-	<script type="text/javascript">
-		$(document).ready(function () {
-			$('#datepicker').datepicker({
-				format: "dd/mm/yyyy",
-				todayHighlight: true
-			});
-			$('.dropdown-menu li > a').click(function(e){
-				$('#dropdownMenu_date_label').text(this.innerHTML); // BIG KLUDGE!
-			});
-		});
-		//TODO: fix smaller screen layout.
-	</script>
 	<style type="text/css">
 		.table tbody>tr>td.verta {
 			vertical-align: middle;
@@ -37,45 +20,51 @@
 <body>
 <div class="container">
 	<div class="page-header">
-		<div class="row">
-			<div class="col-md-11"><h1>Art-Battle {date}</h1></div>
-			<button type="button" class="btn btn-danger col-md-1" style="margin-top:25px" id="btn_delete">Delete</button>
-		</div>
-	</div>
-	<div class="form-horizontal">
+	<div class="form-horizontal" id="form_manager">
 		<div class="form-group">
 			<div class="form-horizontal col-md-6">
+				<input type="hidden" name="date" id="input_open_date"/>
 				<div class="form-group">
 					<label for="dropdown_date" class="col-md-4 control-label">Open date</label>
-					<div class="dropdown col-md-6">
-						  <button class="btn btn-default dropdown-toggle" type="button" id="dropdownMenu_date" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" style="width:100%">
-							<span id="dropdownMenu_date_label" style="float:left">Dropdown</span>
+					<div class="dropdown col-md-4">
+						<button class="btn btn-default dropdown-toggle" type="button" id="dropdownMenu_date" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" style="width:100%" {% if not dates %}disabled{% endif %}>
+							<span id="dropdownMenu_date_label" style="float:left">Select date...</span>
 							<span class="caret" style="float:right; margin-top:0.5em"></span>
-						  </button>
-						  <ul class="dropdown-menu" aria-labelledby="dropdownMenu_date" style="width:100%">
-							<li><a href="#">Date1</a></li>
-							<li><a href="#">Date2</a></li>
-						  </ul>
+						</button>
+						<ul class="dropdown-menu" aria-labelledby="dropdownMenu_date" style="width:100%">
+							{% for ab in dates %}
+							<li><a href="#">{{ab.date}}</a></li>
+							{% endfor %}
+						</ul>
 					</div>
-					<button type="button" class="btn btn-default col-md-2" id="btn_open">Open</button>
 				</div>
 			</div>
-			<div class="form-horizontal col-md-6">
+			<form class="form-horizontal col-md-6" method="POST" action="/artbattle-create">
 				<div class="form-group">
 					<label for="datepicker" class="col-md-4 control-label">Create new</label>
 					<div class="col-md-6">
 						<div class="input-group">
-						<input type="text" class="form-control" value="{date}" id="datepicker">
+						<input type="text" class="form-control" id="datepicker" name="date" placeholder="Set date..."></input>
 						<span class="input-group-addon"><i class="glyphicon glyphicon-calendar"></i></span>
 					</div></div>
-					<button type="button" class="btn btn-success col-md-2" id="btn_create">Create</button>
+					<input type="submit" class="btn btn-success col-md-2" id="btn_create" value="Create"></input>
 				</div>
-			</div>
+			</form>
 		</div>
+	</div></div>
+	{% if date %}
+	<div class="form-horizontal" id="form_editor">
+		<h1>Art-Battle {{date}}</h1>
 		<hr>
 		<div class="form-group">
+			<div class="col-md-offset-2 col-md-10">
+				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_announce">Announce</button>
+				<button type="button" class="btn btn-danger" id="btn_delete">Delete</button>
+			</div>
+		</div>
+		<div class="form-group">
 			<label class="col-md-2 control-label" for="theme">Theme</label>
-			<div class="col-md-9"><input type="text" class="form-control" value="{theme}" id="theme"/></div>
+			<div class="col-md-9"><input type="text" class="form-control" value="{{theme}}" id="theme"></input></div>
 			<button type="button" class="btn btn-primary col-md-1" id="btn_theme">Set</button>
 		</div>
 		<hr>
@@ -83,19 +72,19 @@
 			<div class="form-horizontal col-md-6">
 				<div class="form-group">
 					<label class="col-md-4 control-label" for="announcement_post_id">Announcement post ID</label>
-					<div class="col-md-6"><input type="text" class="form-control" value="{announcement_post_id}" id="announcement_post_id"/></div>
+					<div class="col-md-6"><input type="text" class="form-control" value="{{announcement_post_id}}" id="announcement_post_id"></input></div>
 				</div>
 				<div class="form-group">
 					<label class="col-md-4 control-label" for="battle_post_id">Battle post ID</label>
-					<div class="col-md-6"><input type="text" class="form-control" value="{battle_post_id}" id="battle_post_id"/></div>
+					<div class="col-md-6"><input type="text" class="form-control" value="{{battle_post_id}}" id="battle_post_id"></input></div>
 				</div>
 				<div class="form-group">
 					<label class="col-md-4 control-label" for="poll_post_id">Poll post ID</label>
-					<div class="col-md-6"><input type="text" class="form-control" value="{poll_post_id}" id="poll_post_id"/></div>
+					<div class="col-md-6"><input type="text" class="form-control" value="{{poll_post_id}}" id="poll_post_id"></input></div>
 				</div>
 				<div class="form-group">
 					<label class="col-md-4 control-label" for="results_post_id">Results post ID</label>
-					<div class="col-md-6"><input type="text" class="form-control" value="{results_post_id}" id="results_post_id"/></div>
+					<div class="col-md-6"><input type="text" class="form-control" value="{{results_post_id}}" id="results_post_id"></input></div>
 				</div>
 			</div>
 			<div class="form-horizontal col-md-6">
@@ -103,7 +92,7 @@
 					<label class="col-md-4 control-label" for="cover_art_url">Cover art URL</label>
 					<div class="col-md-6">
 						<div class="input-group">
-							<input type="text" class="form-control" value="{cover_art_url}" id="cover_art_url"/>
+							<input type="text" class="form-control" value="{{cover_art_url}}" id="cover_art_url"></input>
 							<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
 						</div>
 					</div>
@@ -112,7 +101,7 @@
 					<label class="col-md-4 control-label" for="cover_art_author">Cover art author</label>
 					<div class="col-md-6">
 						<div class="input-group">
-							<input type="text" class="form-control" value="{cover_art_author}" id="cover_art_author"/>
+							<input type="text" class="form-control" value="{{cover_art_author}}" id="cover_art_author"></input>
 							<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
 						</div>
 					</div>
@@ -121,7 +110,7 @@
 					<label class="col-md-4 control-label" for="cover_art_source">Cover art source</label>
 					<div class="col-md-6">
 						<div class="input-group">
-							<input type="text" class="form-control" value="{cover_art_source}" id="cover_art_source"/>
+							<input type="text" class="form-control" value="{{cover_art_source}}" id="cover_art_source"></input>
 							<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
 						</div>
 					</div>
@@ -142,7 +131,7 @@
 					<td class="verta">21:47</td>
 					<td class="verta">gor1ck</td>
 					<td class="verta">http://i.imgur.com/asdfsdfrd.jpg</td>
-					<td><img src="https://i.imgur.com/AoE9fwKs.png"/></td>
+					<td><img src="https://i.imgur.com/AoE9fwKs.png"></img></td>
 					<td class="verta">
 						<div class="btn-group">
 							<button type="button" class="btn btn-success" style="height:40px"><i class="glyphicon glyphicon-ok"></i></button>
@@ -151,21 +140,58 @@
 					</td>
 				</tr>
 				<tr>
-					<td class="col-md-1"><input type="text" class="form-control"/></td>
-					<td class="col-md-4"><div class="input-group">
-						<input type="text" class="form-control"/>
+					<td class="col-md-1"><input type="time" class="form-control" id="p_time"></input></td>
+					<td class="col-md-3"><div class="input-group">
+						<input type="text" class="form-control" id="p_username"></input>
 						<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
 					</div></td>
 					<td class="col-md-5"><div class="input-group">
-						<input type="text" class="form-control"/>
+						<input type="text" class="form-control" id="p_art_url"></input>
 						<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
 					</div></td>
-					<td class="col-md-1"><button type="button" class="btn btn-primary">Add</button></td>
+					<td class="col-md-1"><button type="button" class="btn btn-default">Add</button></td>
 					<td class="col-md-1"></td>
 				</tr>
 			</tbody>
 		</table>
 	</div>
+	{% endif %}
 </div>
+
+<!-- Placed at the end of document so that the page loads faster -->
+
+<script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+<script src="static/bootstrap-datepicker.min.js"></script>
+<script type="text/javascript">
+	date = '{{date}}';
+	
+	// Prevent creating new Art-Battle on a date of another Art-Battle:
+	function checkCreateButtonEnabled() {
+		if ($('#datepicker').val() == '' || $('#datepicker').val() == date) {
+			$('#btn_create').attr('disabled', true);
+		} else {
+			$('#btn_create').removeAttr('disabled');
+		}
+	}
+	
+	$(document).ready(function () {
+		$('#datepicker').datepicker({
+			format: "yyyy-mm-dd",
+			todayHighlight: true
+		});
+		checkCreateButtonEnabled();
+	});
+	
+	$('.dropdown-menu li > a').click(function(e){
+		location.href = '/artbattle-edit?date=' + this.innerHTML;
+		//$('#dropdownMenu_date_label').text(this.innerHTML); // BIG KLUDGE!
+		//$('#input_open_date').val(this.innerHTML);
+		//$('#btn_open').removeAttr('disabled');
+	});
+	$('#datepicker').on('changeDate', checkCreateButtonEnabled);
+	
+	//TODO: fix smaller screen layout.
+</script>
 </body>
 </html>
