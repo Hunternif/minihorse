@@ -8,6 +8,7 @@ from google.appengine.ext.webapp.mail_handlers import InboundMailHandler
 from google.appengine.ext import ndb
 
 import jinja2
+import json
 import logging
 import os
 import random
@@ -288,7 +289,9 @@ class ABDeleteHandler(ABBaseHandler):
 class ABEditorHandler(ABBaseHandler):
   def get(self, *args):
     template = JINJA_ENVIRONMENT.get_template('art-battle-edit.html')
-    template_values = {}
+    template_values = {
+      'edit_participants': self.request.get('edit_participants', 0) != 0
+    }
     # Read list of dates:
     dates = ArtBattle.query(ancestor=ArtBattle.ANCESTOR_KEY).order(ArtBattle.date).fetch(projection=ArtBattle.date)
     template_values['dates'] = dates
@@ -388,8 +391,6 @@ class ABParticipantAddHandler(ABBaseHandler):
         self.response.set_status(400)
         self.response.write(e.message)
 
-# TODO edit and delete participant
-
 class ABParticipantReviewHandler(ABBaseHandler):
   def post(self, *args):
     ab = self.get_ArtBattle()
@@ -414,6 +415,39 @@ class ABParticipantReviewHandler(ABBaseHandler):
         else:
           logging.warn("Unknown review verdict ''" % verdict)
 
+class ABParticipantsEditHandler(ABBaseHandler):
+  def post(self, *args):
+    ab = self.get_ArtBattle()
+    to_delete = []
+    # array params don't seem to work for me, so using a JSON string instead :/
+    req_participants = json.loads(self.request.get('participants'))
+    if ab:
+      try:
+        for p, req in zip(ab.participants, req_participants):
+          if req['delete']:
+            to_delete.append(p)
+          else:
+            p.time = datetime.strptime(req['time'], '%H:%M').time()
+            p.user = TabunUser.get_or_insert(req['username'], parent=TabunUser.ANCESTOR_KEY).key
+            p.art_url = req['art_url']
+            p.art_preview_url = req['art_preview_url']
+            p.number = int(req['number'])
+            p.votes = int(req['votes'])
+            p.status = int(req['status'])
+        for p in to_delete:
+          ab.participants.remove(p)
+        # Recalculate total_votes
+        total_votes = 0
+        for p in ab.participants:
+          total_votes += p.votes
+        ab.total_votes = total_votes
+        ab.put()
+      except ValueError as e:
+        logging.error(traceback.format_exc())
+        self.response.set_status(400)
+        self.response.write(e.message)
+
+
 ##################################### Misc #####################################
   
 class HelloHandler(webapp2.RequestHandler):
@@ -435,4 +469,5 @@ app = webapp2.WSGIApplication([
   ('/artbattle/count_votes', ABCountVotesHandler),
   ('/artbattle/participant/add', ABParticipantAddHandler),
   ('/artbattle/participant/review', ABParticipantReviewHandler),
+  ('/artbattle/participant/edit', ABParticipantsEditHandler),
 ], debug=True)

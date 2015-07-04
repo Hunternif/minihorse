@@ -126,30 +126,76 @@
 			</div>
 		</div>
 		<hr class="form-group">
-		<h2>Participants</h2>
 		<div class="form-group">
+			<div class="col-md-2">
+				<h2>Participants</h2>
+			</div>
+			{% if edit_participants %}
+			<div class="col-md-2">
+				<button type="button" class="btn btn-primary" id="btn_save_p" style="margin-top:20px" onclick="save_participants()">Save</button>
+			</div>
+			{% else %}
+			<div class="col-md-2">
+				<button type="button" class="btn btn-default" id="btn_edit_p" style="margin-top:20px" onclick="edit_participants()">Edit</button>
+			</div>
+			{% endif %}
+		</div>
+		<div class="form-group">
+		{% if edit_participants %}
+		<table class="table" id="table_edit_participants">
+			<thead><tr><th>Time</th><th>Name</th><th>Art URL</th><th>No.</th><th>Preview</th><th>Votes</th><th>Appr.</th><th>Late</th><th>Delete</th></tr></thead>
+			<tbody>
+				{% set i = 0 %}
+				{% for p in artbattle.participants %}
+				<tr>
+					<td class="verta col-md-1"><input id="p_time_{{i}}" type="text" class="form-control" value="{{p.time.strftime('%H:%M')}}"></input></td>
+					<td class="verta col-md-2"><div class="input-group">
+						<input type="text" class="form-control" id="p_username_{{i}}" value="{{p.user.id()}}"></input>
+						<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
+					</div></td>
+					<td class="verta"><div class="input-group">
+						<input type="text" class="form-control" id="p_art_url_{{i}}" value="{{p.art_url}}"></input>
+						<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
+					</div></td>
+					<td class="verta" style="width:60px"><input id="p_number_{{i}}" type="text" class="form-control" value="{{p.number}}"></input></td>
+					<td class="verta"><div class="input-group">
+						<input type="text" class="form-control" id="p_art_preview_url_{{i}}" value="{{p.art_preview_url}}"></input>
+						<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
+					</div></td>
+					<td class="verta" style="width:60px"><input id="p_votes_{{i}}" type="text" class="form-control" value="{{p.votes}}"></input></td>
+					<td class="verta"><input id="p_approve_{{i}}" type="checkbox" {% if p.status != 2 %}checked{% endif %}></input></td>
+					<td class="verta"><input id="p_late_{{i}}" type="checkbox" {% if p.status == 3 %}checked{% endif %}></input></td>
+					<td class="verta"><input id="p_delete_{{i}}" type="checkbox"></input></td>
+				</tr>
+				{% set i = i + 1 %}
+				{% endfor %}
+			</tbody>
+		</table>
+		{% else %}
 		<table class="table" id="table_participants">
-			<thead><tr><th>Time</th><th>Name</th><th>Art URL</th><th>No.</th><th>Preview</th><th>Approve</th><th>Votes</th></tr></thead>
+			<thead><tr><th>Time</th><th>Name</th><th>Art URL</th><th>Status</th><th>No.</th><th>Preview</th><th>Votes</th></tr></thead>
 			<tbody>
 				{% for p in artbattle.participants %}
 				<tr>
 					<td class="verta col-md-1">{{p.time.strftime('%H:%M')}}</td>
 					<td class="verta"><a href="http://tabun.everypony.ru/profile/{{p.user.id()}}/" target="_blank">{{p.user.id()}}</a></td>
 					<td class="verta"><a href="{{p.art_url}}" target="_blank">{{p.art_url}}</a></td>
-					<td class="verta">{{p.number or '-'}}</td>
-					<td class="verta"><img src="{{p.art_preview_url}}"></img></td>
 					<td class="verta">
 						{% if p.status == 1 %}
 						<i class="glyphicon glyphicon-ok"></i>
 						{% elif p.status == 2 %}
 						<i class="glyphicon glyphicon-ban-circle"></i>
+						{% elif p.status == 3 %}
+						<i class="glyphicon glyphicon-time"></i>
 						{% else %}
-						<div class="btn-group">
+						<div class="btn-group" style="width:80px">
 							<button type="button" class="btn btn-success" style="height:40px" onclick="review_participant('{{p.art_url}}', 'approve')"><i class="glyphicon glyphicon-ok"></i></button>
 							<button type="button" class="btn btn-danger" style="height:40px" onclick="review_participant('{{p.art_url}}', 'decline')"><i class="glyphicon glyphicon-ban-circle"></i></button>
 						</div>
 						{% endif %}
 					</td>
+					<td class="verta">{{p.number or '-'}}</td>
+					<td class="verta"><img src="{{p.art_preview_url}}"></img></td>
 					<td class="verta col-md-2">{% if p.votes==None %}-{% elif artbattle.total_votes %}
 						<div class="progress">
 							{% set percent = p.votes / artbattle.total_votes * 100 %}
@@ -177,6 +223,7 @@
 				</tr>
 			</tbody>
 		</table>
+		{% endif %}
 		</div>
 	</div>
 	{% endif %}
@@ -188,12 +235,13 @@
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 <script src="/static/bootstrap-datepicker.min.js"></script>
 <script type="text/javascript">
-	P_STATUS_PENDING = 0;
-	P_STATUS_APPROVED = 1;
-	P_STATUS_DECLINED = 2; //Broke some of the rules
-	P_STATUS_LATE = 3;
+	const P_STATUS_PENDING = 0;
+	const P_STATUS_APPROVED = 1;
+	const P_STATUS_DECLINED = 2; //Broke some of the rules
+	const P_STATUS_LATE = 3;
 
-	date = '{% if artbattle %}{{artbattle.date}}{% endif %}';
+	const date = '{% if artbattle %}{{artbattle.date}}{% endif %}';
+	const total_participants = {% if artbattle %}{{artbattle.participants|length}}{% else %}0{% endif %};
 	
 	// Prevent creating new Art-Battle on a date of another Art-Battle:
 	function checkCreateButtonEnabled() {
@@ -285,6 +333,48 @@
 			date: date,
 			art_url: art_url,
 			verdict: verdict
+		});
+	}
+	function edit_participants() {
+		location.href += '&edit_participants';
+	}
+	function save_participants() {
+		var participants = [];
+		for (var i = 0; i < total_participants; i++) {
+			participants[i] = {
+				time: $('#p_time_' + i).val(),
+				username: $('#p_username_' + i).val(),
+				art_url: $('#p_art_url_' + i).val(),
+				art_preview_url: $('#p_art_preview_url_' + i).val(),
+				number: $('#p_number_' + i).val(),
+				votes: $('#p_votes_' + i).val(),
+				delete: $('#p_delete_' + i).prop('checked')
+			}
+			if ($('#p_approve_' + i).prop('checked')) {
+				if ($('#p_late_' + i).prop('checked')) {
+					participants[i].status = P_STATUS_LATE;
+				} else {
+					participants[i].status = P_STATUS_APPROVED;
+				}
+			} else {
+				participants[i].status = P_STATUS_DECLINED;
+			}
+		}
+		$.ajax({
+			url: 'participant/edit',
+			type: 'POST',
+			data: {
+				date: date,
+				participants: JSON.stringify(participants, null)
+			},
+			success: function(result) {
+				location.href = 'edit?date=' + date;
+			},
+			error: function(result) {
+				if (result.responseText) {
+					alert(result.responseText);
+				}
+			}
 		});
 	}
 	
