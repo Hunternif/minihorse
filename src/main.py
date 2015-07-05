@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from datetime import datetime, tzinfo, timedelta
+from datetime import datetime, tzinfo, timedelta 
 
 from google.appengine.api.mail import InboundEmailMessage
 from google.appengine.ext.webapp.mail_handlers import InboundMailHandler
@@ -43,6 +43,12 @@ class FixedOffsetTZ(tzinfo):
 UTC = FixedOffsetTZ(0, 'UTC')
 MOSCOW_TIME = FixedOffsetTZ(3, 'Moscow Time')
 
+def utc_to_moscow_time(datetime):
+  """Only accepts datetime!"""
+  return datetime.replace(tzinfo=UTC).astimezone(MOSCOW_TIME)
+def moscow_to_utc_time(datetime):
+  """Only accepts datetime!"""
+  return datetime.replace(tzinfo=MOSCOW_TIME).astimezone(UTC)
 
 class Email(ndb.Model):
   subject = ndb.StringProperty()
@@ -51,16 +57,13 @@ class Email(ndb.Model):
   time = ndb.DateTimeProperty(auto_now_add = True)
   body_html = ndb.TextProperty()
   read = ndb.BooleanProperty()
-  
-  def moscow_time(self):
-    return self.time.replace(tzinfo=UTC).astimezone(MOSCOW_TIME)
 
 class InboxHandler(webapp2.RequestHandler):
   def get(self):
     self.response.write('<html><body>')
     inbox = Email.query().order(-Email.time).fetch()
     for mail in inbox:
-      self.response.write('<h1>%s</h1><a>From: %s<br>To: %s<br>Time: %s</a><p>%s</p><hr>' % (mail.subject, mail.sender, mail.to, mail.moscow_time(), mail.body_html))
+      self.response.write('<h1>%s</h1><a>From: %s<br>To: %s<br>Time: %s</a><p>%s</p><hr>' % (mail.subject, mail.sender, mail.to, utc_to_moscow_time(mail.time), mail.body_html))
     self.response.write('</body></html>')
 
 
@@ -109,10 +112,13 @@ class Participant(ndb.Model):
   user = ndb.KeyProperty(kind='TabunUser')
   art_url = ndb.StringProperty()
   art_preview_url = ndb.StringProperty()
-  time = ndb.TimeProperty() # UTC time of submitting artwork
+  time = ndb.DateTimeProperty() # UTC datetime of submitting artwork. Only the time part is relevant though.
   votes = ndb.IntegerProperty(default=0)
   original_email = ndb.KeyProperty(kind='Email') # will be None for manually added participants
   status = ndb.IntegerProperty(default=STATUS_PENDING)
+  
+  def local_time(self):
+    return utc_to_moscow_time(self.time)
 
 class ArtBattle(ndb.Model):
   PHASE_UPCOMING = 0
@@ -234,7 +240,7 @@ class ArtBattle(ndb.Model):
     self.phase = ArtBattle.PHASE_FINISHED
     self.put()
   
-  def add_participant(self, username, art_url, time=datetime.now().time(), original_email=None):
+  def add_participant(self, username, art_url, time=datetime.now(), original_email=None):
     """Add a participant to this Art-Battle and format their artwork."""
     user = TabunUser.get_or_insert(username, parent=TabunUser.ANCESTOR_KEY)
     # TODO: resize image and upload to imgur.com (if needed)
@@ -395,9 +401,9 @@ class ABParticipantAddHandler(ABBaseHandler):
     if ab:
       try:
         username = self.request.get('username')
-        time = datetime.strptime(self.request.get('time'), '%H:%M').time()
+        time = datetime.combine(ab.date, moscow_to_utc_time(datetime.strptime(self.request.get('time'), '%H:%M')).time())
         art_url = self.request.get('art_url')
-        ab.add_participant(username, art_url)
+        ab.add_participant(username, art_url, time)
         ab.put()
       except ValueError as e:
         logging.error(traceback.format_exc())
@@ -440,7 +446,7 @@ class ABParticipantsEditHandler(ABBaseHandler):
           if req['delete']:
             to_delete.append(p)
           else:
-            p.time = datetime.strptime(req['time'], '%H:%M').time()
+            p.time = datetime.combine(ab.date, moscow_to_utc_time(datetime.strptime(req['time'], '%H:%M')).time())
             p.user = TabunUser.get_or_insert(req['username'], parent=TabunUser.ANCESTOR_KEY).key
             p.art_url = req['art_url']
             p.art_preview_url = req['art_preview_url']
