@@ -119,7 +119,7 @@ class ArtBattle(ndb.Model):
   PHASE_ANNOUNCED = 1
   PHASE_PREPARED = 2
   PHASE_BATTLE_ON = 3
-  PHASE_APPROVAL = 4 # May be skipped if all artworks are approved by the end of the battle
+  PHASE_REVIEW = 4 # May be skipped if all artworks are approved by the end of the battle
   PHASE_VOTING = 5
   PHASE_FINISHED = 6
   phase = ndb.IntegerProperty(default=PHASE_UPCOMING)
@@ -170,7 +170,9 @@ class ArtBattle(ndb.Model):
 
   def set_theme(self, theme):
     """Sets the theme and begins Art-Battle."""
-    logging.info("Setting Art-Battle theme: %s. Art-Battle begins!" % theme)
+    logging.info("Setting Art-Battle theme: '%s'. Art-Battle begins!" % theme)
+    self.theme = theme
+    self.put()
     user = get_admin()
     # TODO: announcement text + theme
     text = u'Текст Арт-Баттла с темой'
@@ -197,7 +199,7 @@ class ArtBattle(ndb.Model):
       i += 1
     ret = user.add_poll(BLOG_ID, u'Голосование за Арт-Баттл %s' % self.date, choices, text, u'Арт-Баттл, голосвание, %s' % self.date)
     self.poll_post_id = ret[1]
-    # TODO check if artworks need approval and then proceed to either PHASE_APPROVAL or PHASE_VOTING
+    # TODO check if artworks need approval and then proceed to either PHASE_REVIEW or PHASE_VOTING
     self.phase = ArtBattle.PHASE_VOTING
     self.put()
   
@@ -308,6 +310,7 @@ class ABAnnounceHandler(ABBaseHandler):
       try:
         ab.announce()
       except tabun_api.TabunError as e:
+        logging.error(traceback.format_exc())
         self.response.set_status(403)
         self.response.write(e.message)
 
@@ -319,6 +322,7 @@ class ABSetThemeHandler(ABBaseHandler):
       try:
         ab.set_theme(theme)
       except tabun_api.TabunError as e:
+        logging.error(traceback.format_exc())
         self.response.set_status(403)
         self.response.write(e.message)
 
@@ -329,6 +333,7 @@ class ABCreatePollHandler(ABBaseHandler):
       try:
         ab.create_poll()
       except (tabun_api.TabunError, ArtBattleError) as e:
+        logging.error(traceback.format_exc())
         self.response.set_status(403)
         self.response.write(e.message)
 
@@ -339,6 +344,7 @@ class ABCountVotesHandler(ABBaseHandler):
       try:
         ab.count_votes()
       except tabun_api.TabunError as e:
+        logging.error(traceback.format_exc())
         self.response.set_status(403)
         self.response.write(e.message)
 
@@ -359,6 +365,7 @@ class ABUpdateHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
+        self.update_field(ab, 'phase', True)
         self.update_field(ab, 'announcement_post_id', True)
         self.update_field(ab, 'battle_post_id', True)
         self.update_field(ab, 'poll_post_id', True)

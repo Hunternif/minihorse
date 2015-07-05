@@ -67,9 +67,35 @@
 			</div>
 		</div>
 		<div class="form-group">
+			<label class="col-sm-2 control-label">Phase</label>
+			<div class="col-sm-10">
+				<label class="radio-inline">
+					<input type="radio" name="phase" id="phase_0" value="0"></input> Upcoming
+				</label>
+				<label class="radio-inline">
+					<input type="radio" name="phase" id="phase_1" value="1"></input> Announced
+				</label>
+				<label class="radio-inline">
+					<input type="radio" name="phase" id="phase_2" value="2"></input> Prepared
+				</label>
+				<label class="radio-inline">
+					<input type="radio" name="phase" id="phase_3" value="3"></input> Battle on
+				</label>
+				<label class="radio-inline">
+					<input type="radio" name="phase" id="phase_4" value="4"></input> Review
+				</label>
+				<label class="radio-inline">
+					<input type="radio" name="phase" id="phase_5" value="5"></input> Voting
+				</label>
+				<label class="radio-inline">
+					<input type="radio" name="phase" id="phase_6" value="6"></input> Finished
+				</label>
+			</div>
+		</div>
+		<div class="form-group">
 			<label class="col-sm-2 control-label" for="theme">Theme</label>
 			<div class="col-sm-9"><input type="text" class="form-control" value="{{artbattle.theme or ''}}" id="theme"></input></div>
-			<button type="button" class="btn btn-primary col-sm-1" id="btn_theme">Set</button>
+			<button type="button" class="btn btn-primary col-sm-1" id="btn_theme" onclick="set_theme()">Set</button>
 		</div>
 		<div class="form-group">
 			<div class="form-horizontal col-sm-6">
@@ -258,7 +284,12 @@
 			todayHighlight: true,
 			weekStart: 1
 		});
+		// Disable the "Create" button because at this point empty date is selected:
 		checkCreateButtonEnabled();
+		// Set active phase:
+		{% if artbattle %}
+		$('input:radio[name=phase][value={{artbattle.phase}}]').prop('checked', true);
+		{% endif %}
 	});
 	
 	$('.dropdown-menu li > a').click(function(e){
@@ -304,6 +335,7 @@
 	function save() {
 		post('update', {
 			date: date,
+			phase: $('input:radio[name=phase]:checked').val(),
 			announcement_post_id: $('#announcement_post_id').val(),
 			battle_post_id: $('#battle_post_id').val(),
 			poll_post_id: $('#poll_post_id').val(),
@@ -376,6 +408,10 @@
 				}
 			}
 		});
+	}
+	
+	function set_theme() {
+		post('set_theme', {date:date, theme: $('#theme').val()});
 	}
 	
 	//TODO: fix smaller screen layout.
