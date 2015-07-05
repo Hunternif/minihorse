@@ -211,6 +211,8 @@ class ArtBattle(ndb.Model):
     # TODO check if artworks need approval and then proceed to either PHASE_REVIEW or PHASE_VOTING
     self.phase = ArtBattle.PHASE_VOTING
     self.put()
+    # Vote (for no candidate) to make sure poll resulst are readable:
+    user.poll_answer(self.poll_post_id, -1)
   
   def update_poll(self):
     """Update the poll post with late submissions"""
@@ -221,17 +223,22 @@ class ArtBattle(ndb.Model):
     """Ends voting and creates a post with results."""
     logging.info("Ending and counting votes for Art-Battle %s" % self.date)
     user = get_admin()
-    post = user.get_post(self.poll_post_id)
+    # Vote (for no candidate) to make sure poll resulst are readable:
     try:
-      self.total_votes = post.poll.total
-      for i in range(len(post.poll.items)):
+      poll = user.poll_answer(self.poll_post_id, -1)
+    except tabun_api.TabunResultError: # Probably means we've already voted
+      poll = user.get_post(self.poll_post_id).poll
+    try:
+      self.total_votes = poll.total
+      for i in range(len(poll.items)):
         p = self.find_participant_by_number(i+1)
         if p:
-          p.votes = post.poll.items[i][2]
+          p.votes = poll.items[i][2]
         else:
           logging.warn('Participant #%d found in vote but not in Art-Battle' % i)
     except AttributeError:
       raise tabun_api.TabunError(msg="Invalid poll post #%d" % self.poll_post_id)
+    self.put()
     # TODO: voting result text
     text = u'Текст результата'
     ret = user.add_post(BLOG_ID, u'Итоги голосования за Арт-Баттл %s' % self.date, text, u'Арт-Баттл, итоги голосования, %s' % self.date)
