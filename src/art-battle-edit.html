@@ -415,6 +415,9 @@
 				if (result.responseText) {
 					alert(result.responseText);
 				}
+			},
+			complete: function() {
+				$('.btn').button('reset');
 			}
 		});
 	}
