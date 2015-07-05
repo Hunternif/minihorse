@@ -368,7 +368,7 @@ class ABCountVotesHandler(ABBaseHandler):
         self.response.write(e.message)
 
 class ABUpdateHandler(ABBaseHandler):
-  def update_field(self, ab, field, is_int=True):
+  def update_field(self, ab, field, is_int=False):
     """Updates ArtBattle's field with str or int data from request.
        If field is empty, sets it to None."""
     field_value = self.request.get(field)
