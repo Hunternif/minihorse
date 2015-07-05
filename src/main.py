@@ -109,7 +109,7 @@ class Participant(ndb.Model):
   user = ndb.KeyProperty(kind='TabunUser')
   art_url = ndb.StringProperty()
   art_preview_url = ndb.StringProperty()
-  time = ndb.TimeProperty(auto_now_add=True) # UTC time of submitting artwork
+  time = ndb.TimeProperty() # UTC time of submitting artwork
   votes = ndb.IntegerProperty(default=0)
   original_email = ndb.KeyProperty(kind='Email') # will be None for manually added participants
   status = ndb.IntegerProperty(default=STATUS_PENDING)
@@ -231,17 +231,18 @@ class ArtBattle(ndb.Model):
     self.phase = ArtBattle.PHASE_FINISHED
     self.put()
   
-  def add_participant(self, username, art_url, original_email=None):
+  def add_participant(self, username, art_url, time=datetime.now().time(), original_email=None):
     """Add a participant to this Art-Battle and format their artwork."""
     user = TabunUser.get_or_insert(username, parent=TabunUser.ANCESTOR_KEY)
     # TODO: resize image and upload to imgur.com (if needed)
-    p = Participant(user=user.key, art_url=art_url, original_email=original_email)
+    p = Participant(user=user.key, art_url=art_url, time=time, original_email=original_email)
     # Assuming an imgur.com URL, the preview URL is "....s.jpg/png"
     p.art_preview_url = art_url[:-4] + 's' + art_url[-4:]
     self.participants.append(p)
     self.put()
 
 class ArtBattleState(ndb.Model):
+  KEY_ID = 'single state'
   current_battle = ndb.KeyProperty(kind='ArtBattle')
 
 
@@ -454,6 +455,22 @@ class ABParticipantsEditHandler(ABBaseHandler):
         self.response.set_status(400)
         self.response.write(e.message)
 
+class ABCurrentHandler(ABBaseHandler):
+  """GET request returns current Art-Battle, POST request makes given date current."""
+  def get(self, *args):
+    state = ArtBattleState.get_or_insert(ArtBattleState.KEY_ID)
+    if state.current_battle:
+      self.redirect('/artbattle/edit?date=%s' % state.current_battle.get().date)
+    else:
+      self.redirect('/artbattle/edit')
+  def post(self, *args):
+    state = ArtBattleState.get_or_insert(ArtBattleState.KEY_ID)
+    ab = self.get_ArtBattle()
+    if ab:
+      logging.info('Made date %s current' % ab.date)
+      state.current_battle = ab.key
+      state.put()
+
 
 ##################################### Misc #####################################
   
@@ -477,4 +494,5 @@ app = webapp2.WSGIApplication([
   ('/artbattle/participant/add', ABParticipantAddHandler),
   ('/artbattle/participant/review', ABParticipantReviewHandler),
   ('/artbattle/participant/edit', ABParticipantsEditHandler),
+  ('/artbattle/current', ABCurrentHandler),
 ], debug=True)

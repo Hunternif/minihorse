@@ -36,6 +36,7 @@
 							{% endfor %}
 						</ul>
 					</div>
+					<button class="btn btn-default" type="button" id="btn_open_current" onclick="open_current()">Open current</button>
 				</div>
 			</div>
 			<form class="form-horizontal col-sm-6" method="POST" action="create">
@@ -55,7 +56,8 @@
 	<div class="form-horizontal" id="form_editor">
 		<div class="form-group">
 			<h1>Art-Battle {{artbattle.date}}
-				<button type="button" class="btn btn-danger col-sm-1" id="btn_delete" onclick="deleteDate()" style="float:right">Delete</button>
+				<button type="button" class="btn btn-default" id="btn_make_current" onclick="make_current()">Make current</button>
+				<button type="button" class="btn btn-danger" id="btn_delete" onclick="delete_date()" style="float:right">Delete</button>
 			</h1>
 		</div>
 		<hr class="form-group">
@@ -300,7 +302,7 @@
 	});
 	$('#datepicker').on('changeDate', checkCreateButtonEnabled);
 	
-	function deleteDate() {
+	function delete_date() {
 		$.ajax({
 			url: 'delete?date=' + date,
 			type: 'DELETE',
@@ -412,6 +414,17 @@
 	
 	function set_theme() {
 		post('set_theme', {date:date, theme: $('#theme').val()});
+	}
+	
+	function open_current() {
+		location.href = 'current';
+	}
+	function make_current() {
+		$.ajax({
+			url: 'current',
+			method: 'POST',
+			data: {date: date}
+		});
 	}
 	
 	//TODO: fix smaller screen layout.
