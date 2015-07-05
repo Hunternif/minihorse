@@ -103,7 +103,7 @@ class TabunUser(ndb.Model):
 class Participant(ndb.Model):
   STATUS_PENDING = 0
   STATUS_APPROVED = 1
-  STATUS_DECLINED = 2 # Broke some of the rules
+  STATUS_DECLINED = 2 # Broke some of the rules: i.e. self-deanonymized
   STATUS_LATE = 3
   number = ndb.IntegerProperty() # assigned via random shuffle before creating a poll
   user = ndb.KeyProperty(kind='TabunUser')
@@ -242,7 +242,9 @@ class ArtBattle(ndb.Model):
     self.put()
 
 class ArtBattleState(ndb.Model):
+  # There should only be one instance of ArtBattleState, accessed by this key name:
   KEY_ID = 'single state'
+  # Current Art-Battle is the one to which participants will be added with incoming emails
   current_battle = ndb.KeyProperty(kind='ArtBattle')
 
 
