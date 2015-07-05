@@ -301,6 +301,10 @@
 		//$('#btn_open').removeAttr('disabled');
 	});
 	$('#datepicker').on('changeDate', checkCreateButtonEnabled);
+	// Assuming all buttons have loading state
+	$('.btn').on('click', function(){
+		$(this).button('loading');
+	});
 	
 	function delete_date() {
 		$.ajax({
@@ -326,6 +330,9 @@
 				if (result.responseText) {
 					alert(result.responseText);
 				}
+			},
+			complete: function() {
+				$('.btn').button('reset');
 			}
 		});
 	}
@@ -423,7 +430,10 @@
 		$.ajax({
 			url: 'current',
 			method: 'POST',
-			data: {date: date}
+			data: {date: date},
+			complete: function() {
+				$('#btn_make_current').button('reset');
+			}
 		});
 	}
 	

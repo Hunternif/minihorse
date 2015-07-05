@@ -173,12 +173,15 @@ class ArtBattle(ndb.Model):
     logging.info("Setting Art-Battle theme: '%s'. Art-Battle begins!" % theme)
     self.theme = theme
     self.put()
-    user = get_admin()
-    # TODO: announcement text + theme
-    text = u'Текст Арт-Баттла с темой'
-    user.edit_post(self.battle_post_id, BLOG_ID, u'Арт-Баттл %s' % self.date, text, u'Арт-Баттл, конкурс, %s' % self.date)
-    self.phase = ArtBattle.PHASE_BATTLE_ON
-    self.put()
+    if self.battle_post_id:
+      user = get_admin()
+      # TODO: announcement text + theme
+      text = u'Текст Арт-Баттла с темой'
+      user.edit_post(self.battle_post_id, BLOG_ID, u'Арт-Баттл %s' % self.date, text, u'Арт-Баттл, конкурс, %s' % self.date)
+      self.phase = ArtBattle.PHASE_BATTLE_ON
+      self.put()
+    else:
+      raise ArtBattleError('Battle post ID not set')
 
   def create_poll(self):
     """Ends Art-Battle and starts a poll to find the winner."""
@@ -312,7 +315,7 @@ class ABAnnounceHandler(ABBaseHandler):
     if ab:
       try:
         ab.announce()
-      except tabun_api.TabunError as e:
+      except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
         self.response.write(e.message)
@@ -324,7 +327,7 @@ class ABSetThemeHandler(ABBaseHandler):
     if ab:
       try:
         ab.set_theme(theme)
-      except tabun_api.TabunError as e:
+      except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
         self.response.write(e.message)
@@ -346,7 +349,7 @@ class ABCountVotesHandler(ABBaseHandler):
     if ab:
       try:
         ab.count_votes()
-      except tabun_api.TabunError as e:
+      except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
         self.response.write(e.message)
