@@ -191,17 +191,26 @@ class ArtBattle(ndb.Model):
       self.put()
       logging.info('Created announcement post for Art-Battle %s' % self.date)
     else:
-      user.edit_post(self.announcement_post_id, BLOG_ID, post_title, post_body, post_title)
+      user.edit_post(self.announcement_post_id, BLOG_ID, post_title, post_body, post_tags)
       logging.info('Updated announcement post for Art-Battle %s' % self.date)
   
-  def post_main(self):
+  def post_battle(self):
     """Creates a post for the date's Art-Battle. This post will be later updated with the theme.
     If battle_post_id exists, then that post will be updated instead"""
     logging.info("Preparing Art-Battle %s" % self.date)
     user = get_admin()
-    # TODO: announcement text
+    # Construct post from template:
+    template = JINJA_ENVIRONMENT.get_template('post-battle.html')
+    template_values = {
+      'date': self.date,
+      'cover_art_url': self.cover_art_url,
+      'cover_art_author': self.cover_art_author,
+      'cover_art_source_url': self.cover_art_source_url,
+    }
+    if self.phase >= ArtBattle.PHASE_BATTLE_ON:
+      template_values['theme'] = self.theme
     post_title = u'Арт-Баттл %s' % self.date
-    post_body = u'Текст Арт-Баттла без темы'
+    post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, конкурс, %s' % self.date
     if not self.battle_post_id:
       ret = user.add_post(BLOG_ID, post_title, post_body, post_tags)
@@ -210,7 +219,7 @@ class ArtBattle(ndb.Model):
       self.put()
       logging.info('Created post for Art-Battle %s' % self.date)
     else:
-      user.edit_post(self.battle_post_id, BLOG_ID, post_title, post_body, post_title)
+      user.edit_post(self.battle_post_id, BLOG_ID, post_title, post_body, post_tags)
       logging.info('Updated post for Art-Battle %s' % self.date)
 
   def set_theme(self, theme):
@@ -219,9 +228,9 @@ class ArtBattle(ndb.Model):
     self.theme = theme
     self.put()
     if self.battle_post_id:
-      self.post_main()
       self.phase = ArtBattle.PHASE_BATTLE_ON
       self.put()
+      self.post_battle()
     else:
       raise ArtBattleError('Battle post ID not set')
 
@@ -397,12 +406,23 @@ class ABEditorHandler(ABBaseHandler):
       template_values['artbattle'] = ab
     self.response.write(template.render(template_values))
 
-class ABAnnounceHandler(ABBaseHandler):
+class ABPostAnnouncementHandler(ABBaseHandler):
   def post(self, *args):
     ab = self.get_ArtBattle()
     if ab:
       try:
         ab.post_announcement()
+      except (tabun_api.TabunError, ArtBattleError) as e:
+        logging.error(traceback.format_exc())
+        self.response.set_status(403)
+        self.response.write(e.message)
+
+class ABPostBattleHandler(ABBaseHandler):
+  def post(self, *args):
+    ab = self.get_ArtBattle()
+    if ab:
+      try:
+        ab.post_battle()
       except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
@@ -420,7 +440,7 @@ class ABSetThemeHandler(ABBaseHandler):
         self.response.set_status(403)
         self.response.write(e.message)
 
-class ABCreatePollHandler(ABBaseHandler):
+class ABPostPollHandler(ABBaseHandler):
   def post(self, *args):
     ab = self.get_ArtBattle()
     if ab:
@@ -581,9 +601,10 @@ app = webapp2.WSGIApplication([
   ('/artbattle/delete', ABDeleteHandler),
   ('/artbattle/edit', ABEditorHandler),
   ('/artbattle/update', ABUpdateHandler),
-  ('/artbattle/post_announcement', ABAnnounceHandler),
+  ('/artbattle/post_announcement', ABPostAnnouncementHandler),
+  ('/artbattle/post_battle', ABPostBattleHandler),
   ('/artbattle/set_theme', ABSetThemeHandler),
-  ('/artbattle/post_poll', ABCreatePollHandler),
+  ('/artbattle/post_poll', ABPostPollHandler),
   ('/artbattle/count_votes', ABCountVotesHandler),
   ('/artbattle/participant/add', ABParticipantAddHandler),
   ('/artbattle/participant/review', ABParticipantReviewHandler),

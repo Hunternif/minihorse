@@ -65,6 +65,7 @@
 			<label class="col-sm-2 control-label">Post</label>
 			<div class="col-sm-10">
 				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_announce" onclick="create_post('post_announcement')">Announcement{% if artbattle.announcement_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
+				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_post_battle" onclick="create_post('post_battle')">Battle{% if artbattle.battle_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
 				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_create_poll" onclick="create_post('post_poll')">Poll{% if artbattle.poll_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
 				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_count_votes" onclick="create_post('count_votes')">Results{% if artbattle.result_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
 			</div>
@@ -98,7 +99,7 @@
 		<div class="form-group">
 			<label class="col-sm-2 control-label" for="theme">Theme</label>
 			<div class="col-sm-9"><input type="text" class="form-control" value="{{artbattle.theme or ''}}" id="theme"></input></div>
-			<button type="button" class="btn btn-primary col-sm-1" id="btn_theme" onclick="set_theme()">Set</button>
+			<button type="button" class="btn btn-primary col-sm-1" id="btn_theme" onclick="set_theme()">Set & begin</button>
 		</div>
 		<div class="form-group">
 			<div class="form-horizontal col-sm-6">
