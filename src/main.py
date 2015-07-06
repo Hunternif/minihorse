@@ -165,8 +165,9 @@ class ArtBattle(ndb.Model):
   def next_ArtBattle(self):
     return ArtBattle.query(ArtBattle.date > self.date, ancestor=ArtBattle.ANCESTOR_KEY).order(ArtBattle.date).get()
   
-  def announce(self):
-    """Creates a post announcing the upcoming Art-Battle. Not used if the artist decides to post to 'ЯРОК'"""
+  def post_announcement(self):
+    """Creates a post announcing the upcoming Art-Battle. Not used if the artist decides to post to 'ЯРОК'
+    If announcement_post_id exists, then that post will be updated instead."""
     logging.info("Announcing Art-Battle %s" % self.date)
     user = get_admin()
     # Construct post from template:
@@ -177,23 +178,40 @@ class ArtBattle(ndb.Model):
       'cover_art_author': self.cover_art_author,
       'cover_art_source_url': self.cover_art_source_url,
     }
-    if self.date - datetime.now().date() == timedelta(1):
+    if self.date - datetime.now().date() == timedelta(1): # <- This will work only if posting exactly the day before the battle
       template_values['tomorrow'] = True
-    ret = user.add_post(BLOG_ID, u'Объявление Арт-Баттла %s' % self.date, template.render(template_values), u'Арт-Баттл, объявление, конкурс, %s' % self.date)
-    self.announcement_post_id = ret[1]
-    self.phase = ArtBattle.PHASE_ANNOUNCED
-    self.put()
+    
+    post_title = u'Объявление Арт-Баттла %s' % self.date
+    post_body = template.render(template_values)
+    post_tags = u'Арт-Баттл, объявление, конкурс, %s' % self.date
+    if not self.announcement_post_id: # first time:
+      ret = user.add_post(BLOG_ID, post_title, post_body, post_tags)
+      self.announcement_post_id = ret[1]
+      self.phase = ArtBattle.PHASE_ANNOUNCED
+      self.put()
+      logging.info('Created announcement post for Art-Battle %s' % self.date)
+    else:
+      user.edit_post(self.announcement_post_id, BLOG_ID, post_title, post_body, post_title)
+      logging.info('Updated announcement post for Art-Battle %s' % self.date)
   
-  def prepare(self):
-    """Creates a post for the date's Art-Battle. This post will be later updated with the theme."""
+  def post_main(self):
+    """Creates a post for the date's Art-Battle. This post will be later updated with the theme.
+    If battle_post_id exists, then that post will be updated instead"""
     logging.info("Preparing Art-Battle %s" % self.date)
     user = get_admin()
     # TODO: announcement text
-    text = u'Текст Арт-Баттла без темы'
-    ret = user.add_post(BLOG_ID, u'Арт-Баттл %s' % self.date, text, u'Арт-Баттл, конкурс, %s' % self.date)
-    self.battle_post_id = ret[1]
-    self.phase = ArtBattle.PHASE_PREPARED
-    self.put()
+    post_title = u'Арт-Баттл %s' % self.date
+    post_body = u'Текст Арт-Баттла без темы'
+    post_tags = u'Арт-Баттл, конкурс, %s' % self.date
+    if not self.battle_post_id:
+      ret = user.add_post(BLOG_ID, post_title, post_body, post_tags)
+      self.battle_post_id = ret[1]
+      self.phase = ArtBattle.PHASE_PREPARED
+      self.put()
+      logging.info('Created post for Art-Battle %s' % self.date)
+    else:
+      user.edit_post(self.battle_post_id, BLOG_ID, post_title, post_body, post_title)
+      logging.info('Updated post for Art-Battle %s' % self.date)
 
   def set_theme(self, theme):
     """Sets the theme and begins Art-Battle."""
@@ -201,25 +219,21 @@ class ArtBattle(ndb.Model):
     self.theme = theme
     self.put()
     if self.battle_post_id:
-      user = get_admin()
-      # TODO: announcement text + theme
-      text = u'Текст Арт-Баттла с темой'
-      user.edit_post(self.battle_post_id, BLOG_ID, u'Арт-Баттл %s' % self.date, text, u'Арт-Баттл, конкурс, %s' % self.date)
+      self.post_main()
       self.phase = ArtBattle.PHASE_BATTLE_ON
       self.put()
     else:
       raise ArtBattleError('Battle post ID not set')
 
-  def create_poll(self):
-    """Ends Art-Battle and starts a poll to find the winner."""
+  def post_poll(self):
+    """Ends Art-Battle and starts a poll to find the winner.
+    If poll_post_id exists, that post will be updated instead."""
     # Make sure all submissions have been reviewed:
     for p in self.participants:
       if p.status == Participant.STATUS_PENDING:
         raise ArtBattleError('Not all participants have been reviewed')
     logging.info("Creating poll for Art-Battle %s" % self.date)
     user = get_admin()
-    # TODO: voting text
-    text = u'Текст голосования'
     choices = []
     # Shuffle participants' numbers:
     i = 1
@@ -227,24 +241,29 @@ class ArtBattle(ndb.Model):
       p.number = i
       choices.append(u'Участник %d' % i)
       i += 1
-    ret = user.add_poll(BLOG_ID, u'Голосование за Арт-Баттл %s' % self.date, choices, text, u'Арт-Баттл, голосвание, %s' % self.date)
-    self.poll_post_id = ret[1]
-    # TODO check if artworks need approval and then proceed to either PHASE_REVIEW or PHASE_VOTING
-    self.phase = ArtBattle.PHASE_VOTING
-    self.put()
-    # Vote (for no candidate) to make sure poll resulst are readable:
-    user.poll_answer(self.poll_post_id, -1)
-  
-  def update_poll(self):
-    """Update the poll post with late submissions"""
-    # TODO: update_poll
-    pass
+    
+    post_title = u'Голосование за Арт-Баттл %s' % self.date
+    post_body = u'Текст голосования' # TODO: voting text
+    post_tags = u'Арт-Баттл, голосование, %s' % self.date
+    if not self.poll_post_id:
+      ret = user.add_poll(BLOG_ID, post_title, choices, post_body, post_tags)
+      self.poll_post_id = ret[1]
+      # TODO check if artworks need approval and then proceed to either PHASE_REVIEW or PHASE_VOTING
+      self.phase = ArtBattle.PHASE_VOTING
+      self.put()
+      logging.info('Created poll post for Art-Battle %s' % self.date)
+      # Vote (for no candidate) to make sure poll resulst are readable:
+      user.poll_answer(self.poll_post_id, -1)
+    else:
+      # TODO edit poll to accept late submissions
+      logging.info('[NOT IMPLEMENTED] Updated poll post for Art-Battle %s' % self.date)
 
   def count_votes(self):
-    """Ends voting and creates a post with results."""
+    """Ends voting and creates/updates a post with results.
+    If result_post_id exists, that post will be updated instead."""
     logging.info("Ending and counting votes for Art-Battle %s" % self.date)
     user = get_admin()
-    # Vote (for no candidate) to make sure poll resulst are readable:
+    # Vote (for no candidate) to make sure poll results are readable:
     try:
       poll = user.poll_answer(self.poll_post_id, -1)
     except tabun_api.TabunResultError: # Probably means we've already voted
@@ -260,6 +279,12 @@ class ArtBattle(ndb.Model):
     except AttributeError:
       raise tabun_api.TabunError(msg="Invalid poll post #%d" % self.poll_post_id)
     self.put()
+    self.post_results()
+    
+  def post_results(self):
+    """Creates a post with results.
+    If result_post_id exists, that post will be updated instead."""
+    user = get_admin()
     
     has_disqualified = False
     for p in self.participants:
@@ -283,11 +308,19 @@ class ArtBattle(ndb.Model):
       elif next_ab.date - self.date == timedelta(1):
         template_values['next_tomorrow'] = True
     
-    ret = user.add_post(BLOG_ID, u'Итоги голосования за Арт-Баттл %s' % self.date, template.render(template_values), u'Арт-Баттл, итоги голосования, %s' % self.date)
-    self.result_post_id = ret[1]
-    # TODO: send message to winner(s)
-    self.phase = ArtBattle.PHASE_FINISHED
-    self.put()
+    post_title = u'Итоги голосования за Арт-Баттл %s' % self.date
+    post_body = template.render(template_values)
+    post_tags = u'Арт-Баттл, итоги голосования, %s' % self.date
+    if not self.result_post_id:
+      ret = user.add_post(BLOG_ID, post_title, post_body, post_tags)
+      self.result_post_id = ret[1]
+      # TODO: send message to winner(s)
+      self.phase = ArtBattle.PHASE_FINISHED
+      self.put()
+      logging.info('Created results post for Art-Battle %s' % self.date)
+    else:
+      user.edit_post(self.result_post_id, BLOG_ID, post_title, post_body, post_tags)
+      logging.info('Updated results post for Art-Battle %s' % self.date)
   
   def add_participant(self, username, art_url, time=datetime.now(), original_email=None):
     """Add a participant to this Art-Battle and format their artwork."""
@@ -369,7 +402,7 @@ class ABAnnounceHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
-        ab.announce()
+        ab.post_announcement()
       except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
@@ -392,7 +425,7 @@ class ABCreatePollHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
-        ab.create_poll()
+        ab.post_poll()
       except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
@@ -548,9 +581,9 @@ app = webapp2.WSGIApplication([
   ('/artbattle/delete', ABDeleteHandler),
   ('/artbattle/edit', ABEditorHandler),
   ('/artbattle/update', ABUpdateHandler),
-  ('/artbattle/announce', ABAnnounceHandler),
+  ('/artbattle/post_announcement', ABAnnounceHandler),
   ('/artbattle/set_theme', ABSetThemeHandler),
-  ('/artbattle/create_poll', ABCreatePollHandler),
+  ('/artbattle/post_poll', ABCreatePollHandler),
   ('/artbattle/count_votes', ABCountVotesHandler),
   ('/artbattle/participant/add', ABParticipantAddHandler),
   ('/artbattle/participant/review', ABParticipantReviewHandler),
