@@ -171,7 +171,7 @@
 		<div class="form-group">
 		{% if edit_participants %}
 		<table class="table" id="table_edit_participants">
-			<thead><tr><th>Time</th><th>Name</th><th>Art URL</th><th>No.</th><th>Preview</th><th>Votes</th><th>Appr.</th><th>Late</th><th>Delete</th></tr></thead>
+			<thead><tr><th>Time</th><th>Name</th><th>Art URL</th><th>No.</th><th>Preview</th><th>Votes</th><th>Status</th><th>Delete</th></tr></thead>
 			<tbody>
 				{% set i = 0 %}
 				{% for p in artbattle.participants %}
@@ -191,8 +191,15 @@
 						<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
 					</div></td>
 					<td class="verta" style="width:60px"><input id="p_votes_{{i}}" type="text" class="form-control" value="{{p.votes}}"></input></td>
-					<td class="verta"><input id="p_approve_{{i}}" type="checkbox" {% if p.status != 2 %}checked{% endif %}></input></td>
-					<td class="verta"><input id="p_late_{{i}}" type="checkbox" {% if p.status == 3 %}checked{% endif %}></input></td>
+					<td class="verta">
+						<select id="p_status_{{i}}" class="p_status_select" to_select="{{p.status}}">
+							<option value="0">Pending</option>
+							<option value="1">Approved</option>
+							<option value="2">Declined</option>
+							<option value="3">Late</option>
+							<option value="4">Disqualified</option>
+						</select>
+					</td>
 					<td class="verta"><input id="p_delete_{{i}}" type="checkbox"></input></td>
 				</tr>
 				{% set i = i + 1 %}
@@ -215,7 +222,9 @@
 						<i class="glyphicon glyphicon-ban-circle"></i>
 						{% elif p.status == 3 %}
 						<i class="glyphicon glyphicon-time"></i>
-						{% else %}
+						{% elif p.status == 4 %}
+						<i class="glyphicon glyphicon-thumbs-down"></i>
+						{% elif p.status == 0 %}
 						<div class="btn-group" style="width:80px">
 							<button type="button" class="btn btn-success" style="height:40px" onclick="review_participant('{{p.art_url}}', 'approve')"><i class="glyphicon glyphicon-ok"></i></button>
 							<button type="button" class="btn btn-danger" style="height:40px" onclick="review_participant('{{p.art_url}}', 'decline')"><i class="glyphicon glyphicon-ban-circle"></i></button>
@@ -265,8 +274,9 @@
 <script type="text/javascript">
 	const P_STATUS_PENDING = 0;
 	const P_STATUS_APPROVED = 1;
-	const P_STATUS_DECLINED = 2; //Broke some of the rules
+	const P_STATUS_DECLINED = 2; // Completely denied because broke some of the strict rules: i.e. gore/vulgar content
 	const P_STATUS_LATE = 3;
+	const P_STATUS_DISQUALIFIED = 4; // Broke some of the less rules: i.e. self-deanonymized
 
 	const date = '{% if artbattle %}{{artbattle.date}}{% endif %}';
 	const total_participants = {% if artbattle %}{{artbattle.participants|length}}{% else %}0{% endif %};
@@ -286,11 +296,20 @@
 			todayHighlight: true,
 			weekStart: 1
 		});
+		
 		// Disable the "Create" button because at this point empty date is selected:
 		checkCreateButtonEnabled();
-		// Set active phase:
+		
 		{% if artbattle %}
+		// Set active phase:
 		$('input:radio[name=phase][value={{artbattle.phase}}]').prop('checked', true);
+		{% endif %}
+		
+		{% if edit_participants %}
+		// Select current participant statuses
+		$('.p_status_select').each(function () {
+			$(this).val($(this).attr('to_select'));
+		});
 		{% endif %}
 	});
 	
@@ -345,6 +364,7 @@
 		post('update', {
 			date: date,
 			phase: $('input:radio[name=phase]:checked').val(),
+			theme: $('#theme').val(),
 			announcement_post_id: $('#announcement_post_id').val(),
 			battle_post_id: $('#battle_post_id').val(),
 			poll_post_id: $('#poll_post_id').val(),
@@ -389,16 +409,8 @@
 				art_preview_url: $('#p_art_preview_url_' + i).val(),
 				number: $('#p_number_' + i).val(),
 				votes: $('#p_votes_' + i).val(),
+				status: $('#p_status_' + i).val(),
 				delete: $('#p_delete_' + i).prop('checked')
-			}
-			if ($('#p_approve_' + i).prop('checked')) {
-				if ($('#p_late_' + i).prop('checked')) {
-					participants[i].status = P_STATUS_LATE;
-				} else {
-					participants[i].status = P_STATUS_APPROVED;
-				}
-			} else {
-				participants[i].status = P_STATUS_DECLINED;
 			}
 		}
 		$.ajax({

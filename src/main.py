@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from datetime import datetime, tzinfo, timedelta 
+from datetime import datetime, tzinfo, timedelta
+from operator import attrgetter
+from speller import spell_place, spell_next_date
 
 from google.appengine.api.mail import InboundEmailMessage
 from google.appengine.ext.webapp.mail_handlers import InboundMailHandler
@@ -18,11 +20,15 @@ import webapp2
 import fix_libs
 import tabun_api
 
+################################### Templates ##################################
+
 JINJA_ENVIRONMENT = jinja2.Environment(
   loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
   extensions=['jinja2.ext.autoescape'],
   autoescape=True)
-
+  
+JINJA_ENVIRONMENT.filters['spell_place'] = spell_place
+JINJA_ENVIRONMENT.filters['spell_next_date'] = spell_next_date
 
 ##################################### Email ####################################
 
@@ -106,8 +112,10 @@ class TabunUser(ndb.Model):
 class Participant(ndb.Model):
   STATUS_PENDING = 0
   STATUS_APPROVED = 1
-  STATUS_DECLINED = 2 # Broke some of the rules: i.e. self-deanonymized
+  STATUS_DECLINED = 2  # Completely denied because broke some of the strict rules: i.e. gore/vulgar content
   STATUS_LATE = 3
+  STATUS_DISQUALIFIED = 4  # Broke some of the less rules: i.e. self-deanonymized
+  
   number = ndb.IntegerProperty() # assigned via random shuffle before creating a poll
   user = ndb.KeyProperty(kind='TabunUser')
   art_url = ndb.StringProperty()
@@ -151,6 +159,9 @@ class ArtBattle(ndb.Model):
       if p.number == i:
         return p
     return None
+  
+  def next_ArtBattle(self):
+    return ArtBattle.query(ArtBattle.date > self.date, ancestor=ArtBattle.ANCESTOR_KEY).order(ArtBattle.date).get()
   
   def announce(self):
     """Creates a post announcing the upcoming Art-Battle. Not used if the artist decides to post to 'ЯРОК'"""
@@ -239,9 +250,30 @@ class ArtBattle(ndb.Model):
     except AttributeError:
       raise tabun_api.TabunError(msg="Invalid poll post #%d" % self.poll_post_id)
     self.put()
-    # TODO: voting result text
-    text = u'Текст результата'
-    ret = user.add_post(BLOG_ID, u'Итоги голосования за Арт-Баттл %s' % self.date, text, u'Арт-Баттл, итоги голосования, %s' % self.date)
+    
+    has_disqualified = False
+    for p in self.participants:
+      if p.status == Participant.STATUS_DISQUALIFIED:
+        has_disqualified = True
+        break
+    
+    # Construct post from template:
+    participant_sorted = sorted(self.participants, key=attrgetter('votes'), reverse=True)
+    template = JINJA_ENVIRONMENT.get_template('post-results.html')
+    template_values = {
+      'theme': self.theme,
+      'participants': participant_sorted,
+      'has_disqualified': has_disqualified,
+    }
+    next_ab = self.next_ArtBattle()
+    if next_ab:
+      template_values['next_date'] = next_ab.date
+      if next_ab.date == self.date:
+        template_values['next_today'] = True
+      elif next_ab.date - self.date == timedelta(1):
+        template_values['next_tomorrow'] = True
+    
+    ret = user.add_post(BLOG_ID, u'Итоги голосования за Арт-Баттл %s' % self.date, template.render(template_values), u'Арт-Баттл, итоги голосования, %s' % self.date)
     self.result_post_id = ret[1]
     # TODO: send message to winner(s)
     self.phase = ArtBattle.PHASE_FINISHED
@@ -385,6 +417,7 @@ class ABUpdateHandler(ABBaseHandler):
     if ab:
       try:
         self.update_field(ab, 'phase', True)
+        self.update_field(ab, 'theme')
         self.update_field(ab, 'announcement_post_id', True)
         self.update_field(ab, 'battle_post_id', True)
         self.update_field(ab, 'poll_post_id', True)
