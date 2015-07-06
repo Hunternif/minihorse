@@ -97,7 +97,6 @@ PASSWORD = 'tabunminihorsebot'
 
 TEST_BLOG_ID = 40151
 ART_BATTLE_BLOG_ID = 15543
-BLOG_ID = TEST_BLOG_ID # The value used by the ArtBattle class
 
 
 def get_admin():
@@ -105,6 +104,16 @@ def get_admin():
 
 class ArtBattleError(Exception):
   pass
+
+class ArtBattleState(ndb.Model):
+  # There should only be one instance of ArtBattleState, accessed by this key name:
+  KEY_ID = 'single state'
+  # Current Art-Battle is the one to which participants will be added with incoming emails
+  current_battle = ndb.KeyProperty(kind='ArtBattle')
+  blog_id = ndb.IntegerProperty(default=TEST_BLOG_ID) # Which blog to post to and read from.
+
+def get_state():
+  return ArtBattleState.get_or_insert(ArtBattleState.KEY_ID)
 
 class TabunUser(ndb.Model):
   ANCESTOR_KEY = ndb.Key('TabunUser', 'Tabun users')
@@ -156,6 +165,9 @@ class ArtBattle(ndb.Model):
 
   ANCESTOR_KEY = ndb.Key('ArtBattle', 'Art-Battles')
   
+  def blog_id(self):
+    return get_state().blog_id
+  
   def find_participant_by_number(self, i):
     for p in self.participants:
       if p.number == i:
@@ -185,13 +197,13 @@ class ArtBattle(ndb.Model):
     post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, объявление, конкурс, %s' % self.date
     if not self.announcement_post_id: # first time:
-      ret = user.add_post(BLOG_ID, post_title, post_body, post_tags)
+      ret = user.add_post(self.blog_id(), post_title, post_body, post_tags)
       self.announcement_post_id = ret[1]
       self.phase = ArtBattle.PHASE_ANNOUNCED
       self.put()
       logging.info('Created announcement post for Art-Battle %s' % self.date)
     else:
-      user.edit_post(self.announcement_post_id, BLOG_ID, post_title, post_body, post_tags)
+      user.edit_post(self.announcement_post_id, self.blog_id(), post_title, post_body, post_tags)
       logging.info('Updated announcement post for Art-Battle %s' % self.date)
   
   def post_battle(self):
@@ -213,13 +225,13 @@ class ArtBattle(ndb.Model):
     post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, конкурс, %s' % self.date
     if not self.battle_post_id:
-      ret = user.add_post(BLOG_ID, post_title, post_body, post_tags)
+      ret = user.add_post(self.blog_id(), post_title, post_body, post_tags)
       self.battle_post_id = ret[1]
       self.phase = ArtBattle.PHASE_PREPARED
       self.put()
       logging.info('Created post for Art-Battle %s' % self.date)
     else:
-      user.edit_post(self.battle_post_id, BLOG_ID, post_title, post_body, post_tags)
+      user.edit_post(self.battle_post_id, self.blog_id(), post_title, post_body, post_tags)
       logging.info('Updated post for Art-Battle %s' % self.date)
 
   def set_theme(self, theme):
@@ -255,7 +267,7 @@ class ArtBattle(ndb.Model):
     post_body = u'Текст голосования' # TODO: voting text
     post_tags = u'Арт-Баттл, голосование, %s' % self.date
     if not self.poll_post_id:
-      ret = user.add_poll(BLOG_ID, post_title, choices, post_body, post_tags)
+      ret = user.add_poll(self.blog_id(), post_title, choices, post_body, post_tags)
       self.poll_post_id = ret[1]
       # TODO check if artworks need approval and then proceed to either PHASE_REVIEW or PHASE_VOTING
       self.phase = ArtBattle.PHASE_VOTING
@@ -321,14 +333,14 @@ class ArtBattle(ndb.Model):
     post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, итоги голосования, %s' % self.date
     if not self.result_post_id:
-      ret = user.add_post(BLOG_ID, post_title, post_body, post_tags)
+      ret = user.add_post(self.blog_id(), post_title, post_body, post_tags)
       self.result_post_id = ret[1]
       # TODO: send message to winner(s)
       self.phase = ArtBattle.PHASE_FINISHED
       self.put()
       logging.info('Created results post for Art-Battle %s' % self.date)
     else:
-      user.edit_post(self.result_post_id, BLOG_ID, post_title, post_body, post_tags)
+      user.edit_post(self.result_post_id, self.blog_id(), post_title, post_body, post_tags)
       logging.info('Updated results post for Art-Battle %s' % self.date)
   
   def add_participant(self, username, art_url, time=datetime.now(), original_email=None):
@@ -340,12 +352,6 @@ class ArtBattle(ndb.Model):
     p.art_preview_url = art_url[:-4] + 's' + art_url[-4:]
     self.participants.append(p)
     self.put()
-
-class ArtBattleState(ndb.Model):
-  # There should only be one instance of ArtBattleState, accessed by this key name:
-  KEY_ID = 'single state'
-  # Current Art-Battle is the one to which participants will be added with incoming emails
-  current_battle = ndb.KeyProperty(kind='ArtBattle')
 
 
 #################################### Editor ####################################
@@ -572,18 +578,31 @@ class ABParticipantsEditHandler(ABBaseHandler):
 class ABCurrentHandler(ABBaseHandler):
   """GET request returns current Art-Battle, POST request makes given date current."""
   def get(self, *args):
-    state = ArtBattleState.get_or_insert(ArtBattleState.KEY_ID)
+    state = get_state()
     if state.current_battle:
       self.redirect('/artbattle/edit?date=%s' % state.current_battle.get().date)
     else:
       self.redirect('/artbattle/edit')
   def post(self, *args):
-    state = ArtBattleState.get_or_insert(ArtBattleState.KEY_ID)
+    state = get_state()
     ab = self.get_ArtBattle()
     if ab:
       logging.info('Made date %s current' % ab.date)
       state.current_battle = ab.key
       state.put()
+
+class ABSettingsHandler(ABBaseHandler):
+  def get(self, *args):
+    state = get_state()
+    template = JINJA_ENVIRONMENT.get_template('settings.html')
+    template_values = {
+      'blog_id': state.blog_id
+    }
+    self.response.write(template.render(template_values))
+  def post(self, *args):
+    state = get_state()
+    state.blog_id = int(self.request.get('blog_id'))
+    state.put()
 
 
 ##################################### Misc #####################################
@@ -610,4 +629,5 @@ app = webapp2.WSGIApplication([
   ('/artbattle/participant/review', ABParticipantReviewHandler),
   ('/artbattle/participant/edit', ABParticipantsEditHandler),
   ('/artbattle/current', ABCurrentHandler),
+  ('/artbattle', ABSettingsHandler),
 ], debug=True)
