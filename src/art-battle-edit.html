@@ -321,7 +321,7 @@
 	});
 	$('#datepicker').on('changeDate', checkCreateButtonEnabled);
 	// Assuming all buttons have loading state
-	$('.btn').on('click', function(){
+	$('.btn:not(.dropdown-toggle)').on('click', function(){
 		$(this).button('loading');
 	});
 	
