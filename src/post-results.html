@@ -27,4 +27,4 @@
 {% endif %}
 
 Всем спасибо за участие!{% if next_date %}
-Следующий Арт-Баттл состоится {% if next_today %}<strong>сегодня</strong>, {% elif next_tomorrow %}<strong>завтра</strong>, {% endif %}в {{next_date|spell_next_date}}.{% endif %}
+Следующий Арт-Баттл состоится {% if next_today %}<strong>сегодня</strong>, {% elif next_tomorrow %}<strong>завтра</strong>, {% endif %}{{next_date|spell_next_date}}.{% endif %}

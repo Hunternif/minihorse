@@ -3,7 +3,6 @@
 
 from datetime import datetime, tzinfo, timedelta
 from operator import attrgetter
-from speller import spell_place, spell_next_date
 
 from google.appengine.api.mail import InboundEmailMessage
 from google.appengine.ext.webapp.mail_handlers import InboundMailHandler
@@ -14,6 +13,7 @@ import json
 import logging
 import os
 import random
+import speller
 import traceback
 import webapp2
 
@@ -27,8 +27,9 @@ JINJA_ENVIRONMENT = jinja2.Environment(
   extensions=['jinja2.ext.autoescape'],
   autoescape=True)
   
-JINJA_ENVIRONMENT.filters['spell_place'] = spell_place
-JINJA_ENVIRONMENT.filters['spell_next_date'] = spell_next_date
+JINJA_ENVIRONMENT.filters['spell_place'] = speller.spell_place
+JINJA_ENVIRONMENT.filters['spell_weekday'] = speller.spell_weekday
+JINJA_ENVIRONMENT.filters['spell_next_date'] = speller.spell_next_date
 
 ##################################### Email ####################################
 
@@ -139,6 +140,7 @@ class ArtBattle(ndb.Model):
   phase = ndb.IntegerProperty(default=PHASE_UPCOMING)
   
   date = ndb.DateProperty() # No two Art-Battles may have the same date!
+  #TODO variable start times and length
   theme = ndb.StringProperty()
   participants = ndb.StructuredProperty(Participant, repeated=True)
   total_votes = ndb.IntegerProperty()
@@ -167,9 +169,17 @@ class ArtBattle(ndb.Model):
     """Creates a post announcing the upcoming Art-Battle. Not used if the artist decides to post to 'ЯРОК'"""
     logging.info("Announcing Art-Battle %s" % self.date)
     user = get_admin()
-    # TODO: pre-announcement text
-    text = u'Текст объявления Арт-Баттла'
-    ret = user.add_post(BLOG_ID, u'Объявление Арт-Баттла %s' % self.date, text, u'Арт-Баттл, объявление, конкурс, %s' % self.date)
+    # Construct post from template:
+    template = JINJA_ENVIRONMENT.get_template('post-announcement.html')
+    template_values = {
+      'date': self.date,
+      'cover_art_url': self.cover_art_url,
+      'cover_art_author': self.cover_art_author,
+      'cover_art_source_url': self.cover_art_source_url,
+    }
+    if self.date - datetime.now().date() == timedelta(1):
+      template_values['tomorrow'] = True
+    ret = user.add_post(BLOG_ID, u'Объявление Арт-Баттла %s' % self.date, template.render(template_values), u'Арт-Баттл, объявление, конкурс, %s' % self.date)
     self.announcement_post_id = ret[1]
     self.phase = ArtBattle.PHASE_ANNOUNCED
     self.put()

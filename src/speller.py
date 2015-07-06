@@ -58,13 +58,13 @@ def spell_place(place):
     return place
 
 weekday_spelling_dict = {
-  0: u'понедельник',
-  1: u'вторник',
-  2: u'среду',
-  3: u'четверг',
-  4: u'пятницу',
-  5: u'субботу',
-  6: u'воскресенье',
+  0: u'в понедельник',
+  1: u'во вторник',
+  2: u'в среду',
+  3: u'в четверг',
+  4: u'в пятницу',
+  5: u'в субботу',
+  6: u'в воскресенье',
 }
 def spell_weekday(weekday):
   """Accepts an integer from 0 to 6 and returns 'понедельник', ... 'субботу'"""
