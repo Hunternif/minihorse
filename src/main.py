@@ -260,11 +260,25 @@ class ArtBattle(ndb.Model):
     i = 1
     for p in random.sample(self.participants, len(self.participants)):
       p.number = i
-      choices.append(u'Участник %d' % i)
+      if p.status == Participant.STATUS_APPROVED:
+        choices.append(u'Участник %d' % i)
       i += 1
     
+    has_disqualified = False
+    for p in self.participants:
+      if p.status == Participant.STATUS_DISQUALIFIED:
+        has_disqualified = True
+        break
+    # Construct post from template:
+    participant_sorted = sorted(self.participants, key=attrgetter('votes'), reverse=True)
+    template = JINJA_ENVIRONMENT.get_template('post-poll.html')
+    template_values = {
+      'theme': self.theme,
+      'participants': participant_sorted,
+      'has_disqualified': has_disqualified,
+    }
     post_title = u'Голосование за Арт-Баттл %s' % self.date
-    post_body = u'Текст голосования' # TODO: voting text
+    post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, голосование, %s' % self.date
     if not self.poll_post_id:
       ret = user.add_poll(self.blog_id(), post_title, choices, post_body, post_tags)
@@ -273,7 +287,7 @@ class ArtBattle(ndb.Model):
       self.phase = ArtBattle.PHASE_VOTING
       self.put()
       logging.info('Created poll post for Art-Battle %s' % self.date)
-      # Vote (for no candidate) to make sure poll resulst are readable:
+      # Vote (for no candidate) to make sure poll results are readable:
       user.poll_answer(self.poll_post_id, -1)
     else:
       # TODO edit poll to accept late submissions

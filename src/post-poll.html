@@ -1,0 +1,21 @@
+<h5>Тема Арт-Баттла: {{ theme }}</h5>
+
+<span class="spoiler"><span class="spoiler-title" onclick="return true;">Работы участников</span><span class="spoiler-body">
+{% for p in participants %}
+{% if p.status == 1 %}{# Approved #}
+<span class="spoiler"><span class="spoiler-title" onclick="return true;">Участник {{p.number}}
+<img src="{{p.art_preview_url}}" /> <ls user="{{p.user.id()}}"/></span><span class="spoiler-body"><img src="{{p.art_url}}" /></span></span>
+{% endif %}
+{% endfor %}
+</span></span>
+{% if has_disqualified %}
+
+<span class="spoiler"><span class="spoiler-title" onclick="return true;">Дисквалифицированы</span><span class="spoiler-body">
+{% for p in participants %}
+{% if p.status == 4 %}{# Disqualified #}
+<span class="spoiler"><span class="spoiler-title" onclick="return true;">Участник {{p.number}}
+<img src="{{p.art_preview_url}}" /> <ls user="{{p.user.id()}}"/></span><span class="spoiler-body"><img src="{{p.art_url}}" /></span></span>
+{% endif %}
+{% endfor %}
+</span></span>
+{% endif %}
