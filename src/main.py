@@ -157,6 +157,7 @@ class ArtBattle(ndb.Model):
   cover_art_url = ndb.StringProperty()
   cover_art_author = ndb.KeyProperty(kind='TabunUser') # used if cover art is custom-made by a user
   cover_art_source_url = ndb.StringProperty() # used if cover art is a placeholder
+  proof_screenshot_url = ndb.StringProperty()
   
   announcement_post_id = ndb.IntegerProperty() # the pre-announcement a couple of days before
   battle_post_id = ndb.IntegerProperty() # the post in which the theme is revealed
@@ -312,6 +313,7 @@ class ArtBattle(ndb.Model):
           logging.warn('Participant #%d found in vote but not in Art-Battle' % i)
     except AttributeError:
       raise tabun_api.TabunError(msg="Invalid poll post #%d" % self.poll_post_id)
+    #TODO take screenshot
     self.put()
   
   def post_results(self):
@@ -339,6 +341,7 @@ class ArtBattle(ndb.Model):
       'theme': self.theme,
       'places': places,
       'disqualified': disqualified,
+      'proof_screenshot_url': self.proof_screenshot_url,
     }
     next_ab = self.next_ArtBattle()
     if next_ab:
@@ -524,6 +527,7 @@ class ABUpdateHandler(ABBaseHandler):
         self.update_field(ab, 'result_post_id', True)
         self.update_field(ab, 'cover_art_url')
         self.update_field(ab, 'cover_art_source_url')
+        self.update_field(ab, 'proof_screenshot_url')
         cover_art_author = self.request.get('cover_art_author')
         if cover_art_author and cover_art_author != '':
           ab.cover_art_author = TabunUser.get_or_insert(cover_art_author, parent=TabunUser.ANCESTOR_KEY).key
