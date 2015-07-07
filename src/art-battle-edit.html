@@ -67,10 +67,10 @@
 		<div class="form-group">
 			<label class="col-sm-2 control-label">Post</label>
 			<div class="col-sm-10">
-				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_announce" onclick="create_post('post_announcement')">Announcement{% if artbattle.announcement_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
-				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_post_battle" onclick="create_post('post_battle')">Battle{% if artbattle.battle_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
-				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_create_poll" onclick="create_post('post_poll')">Poll{% if artbattle.poll_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
-				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_count_votes" onclick="create_post('count_votes')">Results{% if artbattle.result_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
+				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_announce" onclick="post_with_date('post_announcement')">Announcement{% if artbattle.announcement_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
+				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_post_battle" onclick="post_with_date('post_battle')">Battle{% if artbattle.battle_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
+				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_create_poll" onclick="post_with_date('post_poll')">Poll{% if artbattle.poll_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
+				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_post_results" onclick="post_with_date('post_results')">Results{% if artbattle.result_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
 			</div>
 		</div>
 		<div class="form-group">
@@ -164,12 +164,13 @@
 				<h2>Participants</h2>
 			</div>
 			{% if edit_participants %}
-			<div class="col-md-2">
+			<div class="col-md-10">
 				<button type="button" class="btn btn-primary" id="btn_save_p" style="margin-top:20px" onclick="save_participants()">Save</button>
 			</div>
 			{% else %}
-			<div class="col-md-2">
-				<button type="button" class="btn btn-default" id="btn_edit_p" style="margin-top:20px" onclick="edit_participants()">Edit</button>
+			<div class="col-md-10">
+				<button type="button" class="btn btn-default" id="btn_edit_p" style="margin-top:20px; margin-right:0.5em" onclick="edit_participants()">Edit</button>
+				<button type="button" class="btn btn-primary" id="btn_count_votes" style="margin-top:20px" onclick="post_with_date('count_votes')">Count Votes</button>
 			</div>
 			{% endif %}
 		</div>
@@ -215,6 +216,7 @@
 		<table class="table" id="table_participants">
 			<thead><tr><th>Time</th><th>Name</th><th>Art URL</th><th>Status</th><th>No.</th><th>Preview</th><th>Votes</th></tr></thead>
 			<tbody>
+				{% set i = 0 %}
 				{% for p in artbattle.participants %}
 				<tr>
 					<td class="verta col-md-1">{{p.local_time().strftime('%H:%M')}}</td>
@@ -231,8 +233,8 @@
 						<i class="glyphicon glyphicon-thumbs-down"></i>
 						{% elif p.status == 0 %}
 						<div class="btn-group" style="width:80px">
-							<button type="button" class="btn btn-success" style="height:40px" onclick="review_participant('{{p.art_url}}', 'approve')"><i class="glyphicon glyphicon-ok"></i></button>
-							<button type="button" class="btn btn-danger" style="height:40px" onclick="review_participant('{{p.art_url}}', 'decline')"><i class="glyphicon glyphicon-ban-circle"></i></button>
+							<button type="button" class="btn btn-success" style="height:40px" onclick="review_participant({{i}}, 'approve')"><i class="glyphicon glyphicon-ok"></i></button>
+							<button type="button" class="btn btn-danger" style="height:40px" onclick="review_participant({{i}}, 'decline')"><i class="glyphicon glyphicon-ban-circle"></i></button>
 						</div>
 						{% endif %}
 					</td>
@@ -248,6 +250,7 @@
 						{% else %}{{p.votes}}{% endif %}
 					</td>
 				</tr>
+				{% set i = i + 1 %}
 				{% endfor %}
 				<tr onclick="set_participant_time_now()">
 					<td class="col-md-1"><input type="text" class="form-control" id="p_time"></input></td>
@@ -361,7 +364,7 @@
 		});
 	}
 	
-	function create_post(kind) {
+	function post_with_date(kind) {
 		post(kind, {date: date})
 	}
 	
@@ -394,10 +397,10 @@
 			$('#p_time').val(now.getHours() + ':' + now.getMinutes());
 		}
 	}
-	function review_participant(art_url, verdict) {
+	function review_participant(id, verdict) {
 		post('participant/review', {
 			date: date,
-			art_url: art_url,
+			id: id,
 			verdict: verdict
 		});
 	}

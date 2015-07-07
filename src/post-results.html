@@ -1,27 +1,26 @@
 <h5>Тема Арт-Баттла: {{ theme }}</h5>
 
 <span class="spoiler"><span class="spoiler-title" onclick="return true;">Работы участников</span><span class="spoiler-body">
+{% set place_no = 1 %}
+{% for place in places %}
+{{place_no|spell_place|capitalize}} место {% if place|length > 1 %}делят между собой{% else %}занимает{% endif %}
 {% set i = 1 %}
-{% for p in participants %}
-{% if p.status == 1 %}{# Approved #}
-{{i|spell_place|capitalize}} место занимает
+{% for p in place %}
 <span class="spoiler"><span class="spoiler-title" onclick="return true;">Участник {{p.number}}
 <img src="{{p.art_preview_url}}" /> <ls user="{{p.user.id()}}"/></span><span class="spoiler-body"><img src="{{p.art_url}}" /></span></span>
-{% if i == 1 %}
-Поздравляю с заслуженной победой! Вы награждаетесь званием художника Арт-Баттла к следующей неделе и почетным правом нарисовать обложку для того конкурса. Обложку можете торжественно выложить в ЯРОК со ссылкой на блог Арт-Баттлов или прислать мне для объявления в этом блоге. Желательно это сделать за день до конкурса.
+{% if i < (place|length - 1) %},{% elif i == (place|length - 1) %}и{% endif %}{% set i = i + 1 %}{% endfor %}
+{% if place_no == 1 %}
+Поздравляю с заслуженной победой! Вы {% if place|length > 1 %}коллективно {% endif %}награждаетесь званием художника Арт-Баттла к следующей неделе и почетным правом нарисовать обложку для того конкурса. Обложку можете торжественно выложить в ЯРОК со ссылкой на блог Арт-Баттлов или прислать мне для объявления в этом блоге. Желательно это сделать за день до конкурса.
 {% endif %}
-{% set i = i + 1 %}
-{% endif %}
+{% set place_no = place_no + 1 %}
 {% endfor %}
 </span></span>
-{% if has_disqualified %}
+{% if disqualified %}
 
 <span class="spoiler"><span class="spoiler-title" onclick="return true;">Дисквалифицированы</span><span class="spoiler-body">
-{% for p in participants %}
-{% if p.status == 4 %}{# Disqualified #}
+{% for p in disqualified %}
 <span class="spoiler"><span class="spoiler-title" onclick="return true;">Участник {{p.number}}
 <img src="{{p.art_preview_url}}" /> <ls user="{{p.user.id()}}"/></span><span class="spoiler-body"><img src="{{p.art_url}}" /></span></span>
-{% endif %}
 {% endfor %}
 </span></span>
 {% endif %}

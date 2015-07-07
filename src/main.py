@@ -181,7 +181,6 @@ class ArtBattle(ndb.Model):
     """Creates a post announcing the upcoming Art-Battle. Not used if the artist decides to post to 'ЯРОК'
     If announcement_post_id exists, then that post will be updated instead."""
     logging.info("Announcing Art-Battle %s" % self.date)
-    user = get_admin()
     # Construct post from template:
     template = JINJA_ENVIRONMENT.get_template('post-announcement.html')
     template_values = {
@@ -196,6 +195,7 @@ class ArtBattle(ndb.Model):
     post_title = u'Объявление Арт-Баттла %s' % self.date
     post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, объявление, конкурс, %s' % self.date
+    user = get_admin()
     if not self.announcement_post_id: # first time:
       ret = user.add_post(self.blog_id(), post_title, post_body, post_tags)
       self.announcement_post_id = ret[1]
@@ -210,7 +210,6 @@ class ArtBattle(ndb.Model):
     """Creates a post for the date's Art-Battle. This post will be later updated with the theme.
     If battle_post_id exists, then that post will be updated instead"""
     logging.info("Preparing Art-Battle %s" % self.date)
-    user = get_admin()
     # Construct post from template:
     template = JINJA_ENVIRONMENT.get_template('post-battle.html')
     template_values = {
@@ -224,6 +223,7 @@ class ArtBattle(ndb.Model):
     post_title = u'Арт-Баттл %s' % self.date
     post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, конкурс, %s' % self.date
+    user = get_admin()
     if not self.battle_post_id:
       ret = user.add_post(self.blog_id(), post_title, post_body, post_tags)
       self.battle_post_id = ret[1]
@@ -254,7 +254,6 @@ class ArtBattle(ndb.Model):
       if p.status == Participant.STATUS_PENDING:
         raise ArtBattleError('Not all participants have been reviewed')
     logging.info("Creating poll for Art-Battle %s" % self.date)
-    user = get_admin()
     choices = []
     # Shuffle participants' numbers:
     i = 1
@@ -280,6 +279,7 @@ class ArtBattle(ndb.Model):
     post_title = u'Голосование за Арт-Баттл %s' % self.date
     post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, голосование, %s' % self.date
+    user = get_admin()
     if not self.poll_post_id:
       ret = user.add_poll(self.blog_id(), post_title, choices, post_body, post_tags)
       self.poll_post_id = ret[1]
@@ -294,8 +294,7 @@ class ArtBattle(ndb.Model):
       logging.info('[NOT IMPLEMENTED] Updated poll post for Art-Battle %s' % self.date)
 
   def count_votes(self):
-    """Ends voting and creates/updates a post with results.
-    If result_post_id exists, that post will be updated instead."""
+    """Parse poll post to update participants with their respective vote coutn"""
     logging.info("Ending and counting votes for Art-Battle %s" % self.date)
     user = get_admin()
     # Vote (for no candidate) to make sure poll results are readable:
@@ -314,26 +313,32 @@ class ArtBattle(ndb.Model):
     except AttributeError:
       raise tabun_api.TabunError(msg="Invalid poll post #%d" % self.poll_post_id)
     self.put()
-    self.post_results()
-    
+  
   def post_results(self):
     """Creates a post with results.
     If result_post_id exists, that post will be updated instead."""
-    user = get_admin()
-    
-    has_disqualified = False
-    for p in self.participants:
-      if p.status == Participant.STATUS_DISQUALIFIED:
-        has_disqualified = True
-        break
+    places = [] # Participants grouped by the number of votes
+    disqualified = [] # Disqualified participants
+    participant_sorted = sorted(self.participants, key=attrgetter('votes'), reverse=True)
+    current_votes = 0
+    current_place = []
+    for p in participant_sorted:
+      if p.status == Participant.STATUS_APPROVED:
+        if current_votes == p.votes:
+          current_place.append(p)
+        else:
+          current_place = [p]
+          places.append(current_place)
+          current_votes = p.votes
+      elif p.status == Participant.STATUS_DISQUALIFIED or p.status == Participant.STATUS_LATE:
+        disqualified.append(p)
     
     # Construct post from template:
-    participant_sorted = sorted(self.participants, key=attrgetter('votes'), reverse=True)
     template = JINJA_ENVIRONMENT.get_template('post-results.html')
     template_values = {
       'theme': self.theme,
-      'participants': participant_sorted,
-      'has_disqualified': has_disqualified,
+      'places': places,
+      'disqualified': disqualified,
     }
     next_ab = self.next_ArtBattle()
     if next_ab:
@@ -346,6 +351,7 @@ class ArtBattle(ndb.Model):
     post_title = u'Итоги голосования за Арт-Баттл %s' % self.date
     post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, итоги голосования, %s' % self.date
+    user = get_admin()
     if not self.result_post_id:
       ret = user.add_post(self.blog_id(), post_title, post_body, post_tags)
       self.result_post_id = ret[1]
@@ -482,6 +488,17 @@ class ABCountVotesHandler(ABBaseHandler):
         self.response.set_status(403)
         self.response.write(e.message)
 
+class ABPostResultsHandler(ABBaseHandler):
+  def post(self, *args):
+    ab = self.get_ArtBattle()
+    if ab:
+      try:
+        ab.post_results()
+      except (tabun_api.TabunError, ArtBattleError) as e:
+        logging.error(traceback.format_exc())
+        self.response.set_status(403)
+        self.response.write(e.message)
+
 class ABUpdateHandler(ABBaseHandler):
   def update_field(self, ab, field, is_int=False):
     """Updates ArtBattle's field with str or int data from request.
@@ -538,24 +555,17 @@ class ABParticipantReviewHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       verdict = self.request.get('verdict')
-      art_url = self.request.get('art_url')
-      logging.info("Reviewing participant '%s' with verdict '%s'" % (art_url, verdict))
-      participant = None
-      for p in ab.participants:
-        if p.art_url == art_url:
-          participant = p
-          break
-      if not participant:
-        logging.warn("Participant not found for art URL '%s'" % art_url)
+      p_id = int(self.request.get('id'))
+      logging.info("Reviewing participant %d with verdict '%s'" % (p_id, verdict))
+      participant = ab.participants[p_id]
+      if verdict == 'approve':
+        participant.status = Participant.STATUS_APPROVED
+        ab.put()
+      elif verdict == 'decline':
+        participant.status = Participant.STATUS_DECLINED
+        ab.put()
       else:
-        if verdict == 'approve':
-          participant.status = Participant.STATUS_APPROVED
-          ab.put()
-        elif verdict == 'decline':
-          participant.status = Participant.STATUS_DECLINED
-          ab.put()
-        else:
-          logging.warn("Unknown review verdict ''" % verdict)
+        logging.warn("Unknown review verdict ''" % verdict)
 
 class ABParticipantsEditHandler(ABBaseHandler):
   def post(self, *args):
@@ -639,6 +649,7 @@ app = webapp2.WSGIApplication([
   ('/artbattle/set_theme', ABSetThemeHandler),
   ('/artbattle/post_poll', ABPostPollHandler),
   ('/artbattle/count_votes', ABCountVotesHandler),
+  ('/artbattle/post_results', ABPostResultsHandler),
   ('/artbattle/participant/add', ABParticipantAddHandler),
   ('/artbattle/participant/review', ABParticipantReviewHandler),
   ('/artbattle/participant/edit', ABParticipantsEditHandler),
