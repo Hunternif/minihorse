@@ -14,3 +14,9 @@ indexes:
   ancestor: yes
   properties:
   - name: date
+
+- kind: Email
+  properties:
+  - name: read
+  - name: time
+    direction: desc

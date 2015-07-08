@@ -1,0 +1,83 @@
+<html>
+<head>
+	<title>Art-Battle bot settings</title>
+	
+	<!-- Latest compiled and minified CSS -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+
+	<!-- Optional theme -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css">
+	
+	<style type="text/css">
+		.mail-form-label {
+			text-align: right;
+			font-weight: bold;
+			padding-right: 0.5em;
+		}
+		.mail-form-tr > td {
+			padding-bottom: 0.5em;
+			color: rgb(49, 112, 143);
+		}
+		.btn {
+			margin-right: 0.5em;
+		}
+	</style>
+</head>
+<body>
+<div class="container">
+	<div class="page-header">
+		<h1>Email inbox</h1>
+		<a href='/inbox'>All</a>, <a href='/inbox?unread=true'>Unread</a>
+	</div>
+	{% for m in mail %}
+	<div class="panel panel-info">
+	<div class="panel-heading">
+		<table>
+			<tr class="mail-form-tr"><td class="mail-form-label">From: </td><td>{{m.sender}}</td></tr>
+			<tr class="mail-form-tr"><td class="mail-form-label">To: </td><td>{{m.to}}</td></tr>
+			<tr class="mail-form-tr"><td class="mail-form-label">Time: </td><td>{{m.time.strftime('%Y-%m-%d %H:%M:%S')}}</td></tr>
+			<tr class="mail-form-tr"><td class="mail-form-label">Subject: </td><td>{{m.subject}}</td></tr>
+		</table>
+	</div>
+	<div class="panel-body">
+		<div class="form-group">
+			<button type="button" class="btn btn-primary" onclick="process_email({{m.key.id()}}, 'parse')">Parse</button>
+			<button type="button" class="btn btn-default" onclick="process_email({{m.key.id()}}, 'mark_read')">Mark read{% if m.read %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
+			<button type="button" class="btn btn-danger" onclick="process_email({{m.key.id()}}, 'delete')">Delete</button>
+		</div>
+		<div>{{m.body_html|safe}}</div>
+	</div>
+	</div>
+	{% endfor %}
+</div>
+
+<!-- Placed at the end of document so that the page loads faster -->
+
+<script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+<script type="text/javascript">
+	// Assuming all buttons have loading state except for dropdown lists
+	$('.btn:not(.dropdown-toggle)').on('click', function(){
+		$(this).button('loading');
+	});
+	
+	function process_email(id, action) {
+		$.ajax({
+			url: '/process_email?id='+id+'&action='+action,
+			type: 'POST',
+			success: function() {
+				location.reload();
+			},
+			error: function(result) {
+				if (result.responseText) {
+					alert(result.responseText);
+				}
+			},
+			complete: function() {
+				$('.btn').button('reset');
+			}
+		});
+	}
+</script>
+</body>
+</html>

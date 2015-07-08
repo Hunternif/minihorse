@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import random
+import re
 import speller
 import traceback
 import webapp2
@@ -64,30 +65,76 @@ class Email(ndb.Model):
   time = ndb.DateTimeProperty(auto_now_add = True)
   body_html = ndb.TextProperty()
   read = ndb.BooleanProperty()
+  
+  ANCESTOR_KEY = ndb.Key("Mail", "Inbox")
 
 class InboxHandler(webapp2.RequestHandler):
   def get(self):
-    self.response.write('<html><body>')
-    inbox = Email.query().order(-Email.time).fetch()
-    for mail in inbox:
-      self.response.write('<h1>%s</h1><a>From: %s<br>To: %s<br>Time: %s</a><p>%s</p><hr>' % (mail.subject, mail.sender, mail.to, utc_to_moscow_time(mail.time), mail.body_html))
-    self.response.write('</body></html>')
+    if self.request.get('unread'):
+      inbox = Email.query(Email.read==False).order(-Email.time).fetch()
+    else:
+      inbox = Email.query().order(-Email.time).fetch()
+    template = JINJA_ENVIRONMENT.get_template('inbox.html')
+    template_values = {
+      'mail': inbox
+    }
+    self.response.write(template.render(template_values))
 
+def is_art_battle_topic(topic):
+  return re.match(u'(арт(-)?)?батт?л', topic.lower(), re.UNICODE) != None
+
+def parse_email(msg):
+  # Process Art-Battle messages:
+  if msg.subject.find(u'У вас новое письмо') != -1:
+    m = re.match(u'Вам пришло новое письмо от пользователя <a href="http://tabun.everypony.ru/profile/(?P<user>.+?)/">.*'+
+                 u'Тема письма: <b>(?P<topic>.+?)</b>.*<img src="(?P<art_url>.+?)"', msg.body_html, re.UNICODE|re.DOTALL)
+    if m and is_art_battle_topic(m.group('topic')):
+      ab = get_state().current_battle.get()
+      if ab:
+        ab.add_participant(m.group('user'), m.group('art_url'), msg.time, msg)
+        msg.read = True
+        msg.put()
+        logging.info("Successfully parsed Tabun email %d" % msg.key.id())
+      else:
+        logging.error('No current Art-Battle')
+    else:
+      logging.error("Couldn't parse Tabun email %d" % msg.key.id())
+
+class ProcessEmailHandler(webapp2.RequestHandler):
+  def post(self):
+    email_id = int(self.request.get('id'))
+    action = self.request.get('action')
+    msg = Email.get_by_id(email_id, parent=Email.ANCESTOR_KEY)
+    if msg:
+      if action == 'parse':
+        parse_email(msg)
+      elif action == 'mark_read':
+        msg.read = True
+        msg.put()
+      elif action == 'delete':
+        msg.key.delete()
+      else:
+        logging.error("Unknown email action '%s'" % action)
+    else:
+      logging.error("Email not found with id '%s'" % email_id)
+      self.response.set_status(404)
+      self.response.write("Email not found with id '%s'" % email_id)
 
 class EmailHandler(InboundMailHandler):
   def post(self):
-    msg = InboundEmailMessage(self.request.body)
-    logging.info("You've got mail: \"%s\" %s" % (msg.subject, msg.date))
-    body = msg.bodies(content_type='text/html').next()
+    in_msg = InboundEmailMessage(self.request.body)
+    logging.info("You've got mail: \"%s\" %s" % (in_msg.subject, in_msg.date))
+    body = in_msg.bodies().next()
     if body[0] != 'text/html':
       logging.warn('HTML body not found')
-    msg_db = Email(parent = ndb.Key("Mail", "Inbox"),
-                   subject = msg.subject,
-                   sender = msg.sender,
-                   to = msg.to,
+    msg = Email(parent = Email.ANCESTOR_KEY,
+                   subject = in_msg.subject,
+                   sender = in_msg.sender,
+                   to = in_msg.to,
                    body_html = body[1].decode(),
                    read = False)
-    msg_db.put()
+    msg.put()
+    parse_email(msg)
 
     
 ################################## Art-Battle ##################################
@@ -167,6 +214,7 @@ class ArtBattle(ndb.Model):
   ANCESTOR_KEY = ndb.Key('ArtBattle', 'Art-Battles')
   
   def blog_id(self):
+    # TODO: blog_id should pertain to an Art-Battle instance, not globally.
     return get_state().blog_id
   
   def find_participant_by_number(self, i):
@@ -370,7 +418,7 @@ class ArtBattle(ndb.Model):
     """Add a participant to this Art-Battle and format their artwork."""
     user = TabunUser.get_or_insert(username, parent=TabunUser.ANCESTOR_KEY)
     # TODO: resize image and upload to imgur.com (if needed)
-    p = Participant(user=user.key, art_url=art_url, time=time, original_email=original_email)
+    p = Participant(user=user.key, art_url=art_url, time=time, original_email=original_email.key, number=len(self.participants)+1)
     # Assuming an imgur.com URL, the preview URL is "....s.jpg/png"
     p.art_preview_url = art_url[:-4] + 's' + art_url[-4:]
     self.participants.append(p)
@@ -643,6 +691,7 @@ class HelloHandler(webapp2.RequestHandler):
 app = webapp2.WSGIApplication([
   ('/', HelloHandler),
   ('/inbox', InboxHandler),
+  ('/process_email', ProcessEmailHandler),
   EmailHandler.mapping(),
   ('/artbattle/create', ABCreateHandler),
   ('/artbattle/delete', ABDeleteHandler),
