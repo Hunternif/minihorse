@@ -205,7 +205,7 @@ class ArtBattle(ndb.Model):
   cover_art_source_url = ndb.StringProperty() # used if cover art is a placeholder
   proof_screenshot_url = ndb.StringProperty()
   
-  blog_id = ndb.IntegerProperty(default=TEST_BLOG_ID)
+  blog_id = ndb.IntegerProperty(default=ART_BATTLE_BLOG_ID)
   announcement_post_id = ndb.IntegerProperty() # the pre-announcement a couple of days before
   battle_post_id = ndb.IntegerProperty() # the post in which the theme is revealed
   poll_post_id = ndb.IntegerProperty()
@@ -222,7 +222,7 @@ class ArtBattle(ndb.Model):
   def next_ArtBattle(self):
     return ArtBattle.query(ArtBattle.date > self.date, ancestor=ArtBattle.ANCESTOR_KEY).order(ArtBattle.date).get()
   
-  def post_announcement(self):
+  def post_announcement(self, draft=True):
     """Creates a post announcing the upcoming Art-Battle. Not used if the artist decides to post to 'ЯРОК'
     If announcement_post_id exists, then that post will be updated instead."""
     logging.info("Announcing Art-Battle %s" % self.date)
@@ -242,16 +242,16 @@ class ArtBattle(ndb.Model):
     post_tags = u'Арт-Баттл, объявление, конкурс, %s' % self.date
     user = get_admin()
     if not self.announcement_post_id: # first time:
-      ret = user.add_post(self.blog_id, post_title, post_body, post_tags)
+      ret = user.add_post(self.blog_id, post_title, post_body, post_tags, draft)
       self.announcement_post_id = ret[1]
       self.phase = ArtBattle.PHASE_ANNOUNCED
       self.put()
       logging.info('Created announcement post for Art-Battle %s' % self.date)
     else:
-      user.edit_post(self.announcement_post_id, self.blog_id, post_title, post_body, post_tags)
+      user.edit_post(self.announcement_post_id, self.blog_id, post_title, post_body, post_tags, draft)
       logging.info('Updated announcement post for Art-Battle %s' % self.date)
   
-  def post_battle(self):
+  def post_battle(self, draft=True):
     """Creates a post for the date's Art-Battle. This post will be later updated with the theme.
     If battle_post_id exists, then that post will be updated instead"""
     logging.info("Preparing Art-Battle %s" % self.date)
@@ -270,13 +270,13 @@ class ArtBattle(ndb.Model):
     post_tags = u'Арт-Баттл, конкурс, %s' % self.date
     user = get_admin()
     if not self.battle_post_id:
-      ret = user.add_post(self.blog_id, post_title, post_body, post_tags)
+      ret = user.add_post(self.blog_id, post_title, post_body, post_tags, draft)
       self.battle_post_id = ret[1]
       self.phase = ArtBattle.PHASE_PREPARED
       self.put()
       logging.info('Created post for Art-Battle %s' % self.date)
     else:
-      user.edit_post(self.battle_post_id, self.blog_id, post_title, post_body, post_tags)
+      user.edit_post(self.battle_post_id, self.blog_id, post_title, post_body, post_tags, draft)
       logging.info('Updated post for Art-Battle %s' % self.date)
 
   def set_theme(self, theme):
@@ -291,7 +291,7 @@ class ArtBattle(ndb.Model):
     else:
       raise ArtBattleError('Battle post ID not set')
 
-  def post_poll(self):
+  def post_poll(self, draft=True):
     """Ends Art-Battle and starts a poll to find the winner.
     If poll_post_id exists, that post will be updated instead."""
     # Make sure all submissions have been reviewed:
@@ -326,7 +326,7 @@ class ArtBattle(ndb.Model):
     post_tags = u'Арт-Баттл, голосование, %s' % self.date
     user = get_admin()
     if not self.poll_post_id:
-      ret = user.add_poll(self.blog_id, post_title, choices, post_body, post_tags)
+      ret = user.add_poll(self.blog_id, post_title, choices, post_body, post_tags, draft)
       self.poll_post_id = ret[1]
       # TODO check if artworks need approval and then proceed to either PHASE_REVIEW or PHASE_VOTING
       self.phase = ArtBattle.PHASE_VOTING
@@ -360,7 +360,7 @@ class ArtBattle(ndb.Model):
     #TODO take screenshot
     self.put()
   
-  def post_results(self):
+  def post_results(self, draft=True):
     """Creates a post with results.
     If result_post_id exists, that post will be updated instead."""
     places = [] # Participants grouped by the number of votes
@@ -400,14 +400,14 @@ class ArtBattle(ndb.Model):
     post_tags = u'Арт-Баттл, итоги голосования, %s' % self.date
     user = get_admin()
     if not self.result_post_id:
-      ret = user.add_post(self.blog_id, post_title, post_body, post_tags)
+      ret = user.add_post(self.blog_id, post_title, post_body, post_tags, draft)
       self.result_post_id = ret[1]
       # TODO: send message to winner(s)
       self.phase = ArtBattle.PHASE_FINISHED
       self.put()
       logging.info('Created results post for Art-Battle %s' % self.date)
     else:
-      user.edit_post(self.result_post_id, self.blog_id, post_title, post_body, post_tags)
+      user.edit_post(self.result_post_id, self.blog_id, post_title, post_body, post_tags, draft)
       logging.info('Updated results post for Art-Battle %s' % self.date)
   
   def add_participant(self, username, art_url, time=datetime.now(), original_email=None):
@@ -484,7 +484,7 @@ class ABPostAnnouncementHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
-        ab.post_announcement()
+        ab.post_announcement(draft=self.request.get('draft'))
       except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
@@ -495,7 +495,7 @@ class ABPostBattleHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
-        ab.post_battle()
+        ab.post_battle(draft=self.request.get('draft'))
       except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
@@ -518,7 +518,7 @@ class ABPostPollHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
-        ab.post_poll()
+        ab.post_poll(draft=self.request.get('draft'))
       except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
@@ -540,7 +540,7 @@ class ABPostResultsHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
-        ab.post_results()
+        ab.post_results(draft=self.request.get('draft'))
       except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)

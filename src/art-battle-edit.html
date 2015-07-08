@@ -65,14 +65,9 @@
 		</div>
 		<hr class="form-group">
 		<div class="form-group">
-			<label class="control-label col-sm-2">Blog</label>
-			<div class="col-sm-10">
-				<label class="radio-inline">
-					<input type="radio" name="blog_id" id="blog_id_1" value="40151">Test blog</input>
-				</label>
-				<label class="radio-inline">
-					<input type="radio" name="blog_id" id="blog_id_2" value="15543">Art-Battle blog</input>
-				</label>
+			<label class="control-label col-sm-2">Blog ID</label>
+			<div class="col-sm-3">
+				<input type="text" class="form-control" id="blog_id" value="{{artbattle.blog_id}}"></input>
 			</div>
 		</div>
 		<div class="form-group">
@@ -82,6 +77,11 @@
 				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_post_battle" onclick="post_with_date('post_battle')">Battle{% if artbattle.battle_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
 				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_create_poll" onclick="post_with_date('post_poll')">Poll{% if artbattle.poll_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
 				<button type="button" class="btn btn-primary" style="margin-right:0.5em" id="btn_post_results" onclick="post_with_date('post_results')">Results{% if artbattle.result_post_id %} <i class="glyphicon glyphicon-ok"></i>{% endif %}</button>
+				<div class="checkbox">
+					<label>
+						<input id="draft" type="checkbox" checked></input> Draft
+					</label>
+				</div>
 			</div>
 		</div>
 		<div class="form-group">
@@ -332,8 +332,6 @@
 		{% if artbattle %}
 		// Set active phase:
 		$('input:radio[name=phase][value={{artbattle.phase}}]').prop('checked', true);
-		// Set blog id:
-		$('input:radio[name=blog_id][value={{artbattle.blog_id}}]').prop('checked', true);
 		{% endif %}
 		
 		{% if edit_participants %}
@@ -388,14 +386,17 @@
 	}
 	
 	function post_with_date(kind) {
-		post(kind, {date: date})
+		post(kind, {
+			date: date,
+			draft: $('#draft').prop('checked')
+		});
 	}
 	
 	function save() {
 		post('update', {
 			date: date,
 			phase: $('input:radio[name=phase]:checked').val(),
-			blog_id: $('input:radio[name=blog_id]:checked').val(),
+			blog_id: $('#blog_id').val(),
 			theme: $('#theme').val(),
 			announcement_post_id: $('#announcement_post_id').val(),
 			battle_post_id: $('#battle_post_id').val(),
