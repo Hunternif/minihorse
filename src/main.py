@@ -156,9 +156,10 @@ class ArtBattleState(ndb.Model):
   login = ndb.StringProperty()
   phpsessid = ndb.StringProperty()
   security_ls_key = ndb.StringProperty()
+  login_key = ndb.StringProperty()
   
   def get_admin(self):
-    return tabun_api.User(login=self.login, phpsessid=self.phpsessid, security_ls_key=self.security_ls_key)
+    return tabun_api.User(login=self.login, phpsessid=self.phpsessid, security_ls_key=self.security_ls_key, key=self.login_key)
 
 def get_state():
   return ArtBattleState.get_or_insert(ArtBattleState.KEY_ID)
@@ -683,8 +684,10 @@ class ABLoginHandler(ABBaseHandler):
       state.login = user.username
       state.phpsessid = user.phpsessid
       state.security_ls_key = user.security_ls_key
+      state.login_key = user.key
       state.put()
       logging.info('Logged in as %s' % state.login)
+      self.redirect('/artbattle/edit')
     except (tabun_api.TabunError, ValueError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
