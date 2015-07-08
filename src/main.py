@@ -139,15 +139,9 @@ class EmailHandler(InboundMailHandler):
     
 ################################## Art-Battle ##################################
 
-LOGIN = 'minihorse'
-PASSWORD = 'tabunminihorsebot'
-
 TEST_BLOG_ID = 40151
 ART_BATTLE_BLOG_ID = 15543
 
-
-def get_admin():
-  return tabun_api.User(LOGIN, PASSWORD)
 
 class ArtBattleError(Exception):
   pass
@@ -157,6 +151,14 @@ class ArtBattleState(ndb.Model):
   KEY_ID = 'single state'
   # Current Art-Battle is the one to which participants will be added with incoming emails
   current_battle = ndb.KeyProperty(kind='ArtBattle')
+  
+  # Current user logged in to Tabun:
+  login = ndb.StringProperty()
+  phpsessid = ndb.StringProperty()
+  security_ls_key = ndb.StringProperty()
+  
+  def get_admin(self):
+    return tabun_api.User(login=self.login, phpsessid=self.phpsessid, security_ls_key=self.security_ls_key)
 
 def get_state():
   return ArtBattleState.get_or_insert(ArtBattleState.KEY_ID)
@@ -240,7 +242,7 @@ class ArtBattle(ndb.Model):
     post_title = u'Объявление Арт-Баттла %s' % self.date
     post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, объявление, конкурс, %s' % self.date
-    user = get_admin()
+    user = get_state().get_admin()
     if not self.announcement_post_id: # first time:
       ret = user.add_post(self.blog_id, post_title, post_body, post_tags, draft)
       self.announcement_post_id = ret[1]
@@ -268,7 +270,7 @@ class ArtBattle(ndb.Model):
     post_title = u'Арт-Баттл %s' % self.date
     post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, конкурс, %s' % self.date
-    user = get_admin()
+    user = get_state().get_admin()
     if not self.battle_post_id:
       ret = user.add_post(self.blog_id, post_title, post_body, post_tags, draft)
       self.battle_post_id = ret[1]
@@ -324,7 +326,7 @@ class ArtBattle(ndb.Model):
     post_title = u'Голосование за Арт-Баттл %s' % self.date
     post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, голосование, %s' % self.date
-    user = get_admin()
+    user = get_state().get_admin()
     if not self.poll_post_id:
       ret = user.add_poll(self.blog_id, post_title, choices, post_body, post_tags, draft)
       self.poll_post_id = ret[1]
@@ -341,7 +343,7 @@ class ArtBattle(ndb.Model):
   def count_votes(self):
     """Parse poll post to update participants with their respective vote coutn"""
     logging.info("Ending and counting votes for Art-Battle %s" % self.date)
-    user = get_admin()
+    user = get_state().get_admin()
     # Vote (for no candidate) to make sure poll results are readable:
     try:
       poll = user.poll_answer(self.poll_post_id, -1)
@@ -398,7 +400,7 @@ class ArtBattle(ndb.Model):
     post_title = u'Итоги голосования за Арт-Баттл %s' % self.date
     post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, итоги голосования, %s' % self.date
-    user = get_admin()
+    user = get_state().get_admin()
     if not self.result_post_id:
       ret = user.add_post(self.blog_id, post_title, post_body, post_tags, draft)
       self.result_post_id = ret[1]
@@ -468,6 +470,7 @@ class ABEditorHandler(ABBaseHandler):
   def get(self, *args):
     template = JINJA_ENVIRONMENT.get_template('art-battle-edit.html')
     template_values = {
+      'user': get_state().login,
       'edit_participants': self.request.get('edit_participants', 0) != 0
     }
     # Read list of dates:
@@ -664,15 +667,28 @@ class ABCurrentHandler(ABBaseHandler):
       state.current_battle = ab.key
       state.put()
 
-class ABSettingsHandler(ABBaseHandler):
+class ABLoginHandler(ABBaseHandler):
   def get(self, *args):
-    #state = get_state()
-    template = JINJA_ENVIRONMENT.get_template('settings.html')
-    template_values = {}
+    state = get_state()
+    template = JINJA_ENVIRONMENT.get_template('login.html')
+    template_values = {
+      'user': state.login
+    }
     self.response.write(template.render(template_values))
   def post(self, *args):
-    #state = get_state()
-    pass
+    """Log in and store login, phpsessid and security_ls_key"""
+    try:
+      state = get_state()
+      user = tabun_api.User(self.request.get('login'), self.request.get('password'))
+      state.login = user.username
+      state.phpsessid = user.phpsessid
+      state.security_ls_key = user.security_ls_key
+      state.put()
+      logging.info('Logged in as %s' % state.login)
+    except (tabun_api.TabunError, ValueError) as e:
+        logging.error(traceback.format_exc())
+        self.response.set_status(403)
+        self.response.write(e.message)
 
 
 ##################################### Misc #####################################
@@ -701,5 +717,5 @@ app = webapp2.WSGIApplication([
   ('/artbattle/participant/review', ABParticipantReviewHandler),
   ('/artbattle/participant/edit', ABParticipantsEditHandler),
   ('/artbattle/current', ABCurrentHandler),
-  ('/artbattle', ABSettingsHandler),
+  ('/login', ABLoginHandler),
 ], debug=True)
