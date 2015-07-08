@@ -157,7 +157,6 @@ class ArtBattleState(ndb.Model):
   KEY_ID = 'single state'
   # Current Art-Battle is the one to which participants will be added with incoming emails
   current_battle = ndb.KeyProperty(kind='ArtBattle')
-  blog_id = ndb.IntegerProperty(default=TEST_BLOG_ID) # Which blog to post to and read from.
 
 def get_state():
   return ArtBattleState.get_or_insert(ArtBattleState.KEY_ID)
@@ -206,16 +205,13 @@ class ArtBattle(ndb.Model):
   cover_art_source_url = ndb.StringProperty() # used if cover art is a placeholder
   proof_screenshot_url = ndb.StringProperty()
   
+  blog_id = ndb.IntegerProperty(default=TEST_BLOG_ID)
   announcement_post_id = ndb.IntegerProperty() # the pre-announcement a couple of days before
   battle_post_id = ndb.IntegerProperty() # the post in which the theme is revealed
   poll_post_id = ndb.IntegerProperty()
   result_post_id = ndb.IntegerProperty()
 
   ANCESTOR_KEY = ndb.Key('ArtBattle', 'Art-Battles')
-  
-  def blog_id(self):
-    # TODO: blog_id should pertain to an Art-Battle instance, not globally.
-    return get_state().blog_id
   
   def find_participant_by_number(self, i):
     for p in self.participants:
@@ -246,13 +242,13 @@ class ArtBattle(ndb.Model):
     post_tags = u'Арт-Баттл, объявление, конкурс, %s' % self.date
     user = get_admin()
     if not self.announcement_post_id: # first time:
-      ret = user.add_post(self.blog_id(), post_title, post_body, post_tags)
+      ret = user.add_post(self.blog_id, post_title, post_body, post_tags)
       self.announcement_post_id = ret[1]
       self.phase = ArtBattle.PHASE_ANNOUNCED
       self.put()
       logging.info('Created announcement post for Art-Battle %s' % self.date)
     else:
-      user.edit_post(self.announcement_post_id, self.blog_id(), post_title, post_body, post_tags)
+      user.edit_post(self.announcement_post_id, self.blog_id, post_title, post_body, post_tags)
       logging.info('Updated announcement post for Art-Battle %s' % self.date)
   
   def post_battle(self):
@@ -274,13 +270,13 @@ class ArtBattle(ndb.Model):
     post_tags = u'Арт-Баттл, конкурс, %s' % self.date
     user = get_admin()
     if not self.battle_post_id:
-      ret = user.add_post(self.blog_id(), post_title, post_body, post_tags)
+      ret = user.add_post(self.blog_id, post_title, post_body, post_tags)
       self.battle_post_id = ret[1]
       self.phase = ArtBattle.PHASE_PREPARED
       self.put()
       logging.info('Created post for Art-Battle %s' % self.date)
     else:
-      user.edit_post(self.battle_post_id, self.blog_id(), post_title, post_body, post_tags)
+      user.edit_post(self.battle_post_id, self.blog_id, post_title, post_body, post_tags)
       logging.info('Updated post for Art-Battle %s' % self.date)
 
   def set_theme(self, theme):
@@ -330,7 +326,7 @@ class ArtBattle(ndb.Model):
     post_tags = u'Арт-Баттл, голосование, %s' % self.date
     user = get_admin()
     if not self.poll_post_id:
-      ret = user.add_poll(self.blog_id(), post_title, choices, post_body, post_tags)
+      ret = user.add_poll(self.blog_id, post_title, choices, post_body, post_tags)
       self.poll_post_id = ret[1]
       # TODO check if artworks need approval and then proceed to either PHASE_REVIEW or PHASE_VOTING
       self.phase = ArtBattle.PHASE_VOTING
@@ -404,14 +400,14 @@ class ArtBattle(ndb.Model):
     post_tags = u'Арт-Баттл, итоги голосования, %s' % self.date
     user = get_admin()
     if not self.result_post_id:
-      ret = user.add_post(self.blog_id(), post_title, post_body, post_tags)
+      ret = user.add_post(self.blog_id, post_title, post_body, post_tags)
       self.result_post_id = ret[1]
       # TODO: send message to winner(s)
       self.phase = ArtBattle.PHASE_FINISHED
       self.put()
       logging.info('Created results post for Art-Battle %s' % self.date)
     else:
-      user.edit_post(self.result_post_id, self.blog_id(), post_title, post_body, post_tags)
+      user.edit_post(self.result_post_id, self.blog_id, post_title, post_body, post_tags)
       logging.info('Updated results post for Art-Battle %s' % self.date)
   
   def add_participant(self, username, art_url, time=datetime.now(), original_email=None):
@@ -568,6 +564,7 @@ class ABUpdateHandler(ABBaseHandler):
     if ab:
       try:
         self.update_field(ab, 'phase', True)
+        self.update_field(ab, 'blog_id', True)
         self.update_field(ab, 'theme')
         self.update_field(ab, 'announcement_post_id', True)
         self.update_field(ab, 'battle_post_id', True)
@@ -669,16 +666,13 @@ class ABCurrentHandler(ABBaseHandler):
 
 class ABSettingsHandler(ABBaseHandler):
   def get(self, *args):
-    state = get_state()
+    #state = get_state()
     template = JINJA_ENVIRONMENT.get_template('settings.html')
-    template_values = {
-      'blog_id': state.blog_id
-    }
+    template_values = {}
     self.response.write(template.render(template_values))
   def post(self, *args):
-    state = get_state()
-    state.blog_id = int(self.request.get('blog_id'))
-    state.put()
+    #state = get_state()
+    pass
 
 
 ##################################### Misc #####################################
