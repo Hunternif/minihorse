@@ -27,7 +27,7 @@ JINJA_ENVIRONMENT = jinja2.Environment(
   loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
   extensions=['jinja2.ext.autoescape'],
   autoescape=True)
-  
+
 JINJA_ENVIRONMENT.filters['spell_place'] = speller.spell_place
 JINJA_ENVIRONMENT.filters['spell_weekday'] = speller.spell_weekday
 JINJA_ENVIRONMENT.filters['spell_next_date'] = speller.spell_next_date
@@ -91,7 +91,7 @@ def parse_email(msg):
     if m and is_art_battle_topic(m.group('topic')):
       ab = get_state().current_battle.get()
       if ab:
-        ab.add_participant(m.group('user'), m.group('art_url'), msg.time, msg)
+        ab.add_participant(m.group('user'), m.group('art_url'), msg.time, msg.key)
         msg.read = True
         msg.put()
         logging.info("Successfully parsed Tabun email %d" % msg.key.id())
@@ -166,7 +166,7 @@ def get_state():
 
 class TabunUser(ndb.Model):
   ANCESTOR_KEY = ndb.Key('TabunUser', 'Tabun users')
-  name = ndb.StringProperty()
+  # name = ndb.StringProperty() # key is name
 
 class Participant(ndb.Model):
   STATUS_PENDING = 0
@@ -183,6 +183,9 @@ class Participant(ndb.Model):
   votes = ndb.IntegerProperty(default=0)
   original_email = ndb.KeyProperty(kind='Email') # will be None for manually added participants
   status = ndb.IntegerProperty(default=STATUS_PENDING)
+  
+  def get_name(self):
+    return self.user.id().decode('utf-8')
   
   def local_time(self):
     return utc_to_moscow_time(self.time)
@@ -413,11 +416,11 @@ class ArtBattle(ndb.Model):
       user.edit_post(self.result_post_id, self.blog_id, post_title, post_body, post_tags, draft)
       logging.info('Updated results post for Art-Battle %s' % self.date)
   
-  def add_participant(self, username, art_url, time=datetime.now(), original_email=None):
+  def add_participant(self, username, art_url, time=datetime.now(), original_email_key=None):
     """Add a participant to this Art-Battle and format their artwork."""
     user = TabunUser.get_or_insert(username, parent=TabunUser.ANCESTOR_KEY)
     # TODO: resize image and upload to imgur.com (if needed)
-    p = Participant(user=user.key, art_url=art_url, time=time, original_email=original_email.key, number=len(self.participants)+1)
+    p = Participant(user=user.key, art_url=art_url, time=time, original_email=original_email_key, number=len(self.participants)+1)
     # Assuming an imgur.com URL, the preview URL is "....s.jpg/png"
     p.art_preview_url = art_url[:-4] + 's' + art_url[-4:]
     self.participants.append(p)

@@ -206,7 +206,7 @@
 				<tr>
 					<td class="verta col-md-1"><input id="p_time_{{i}}" type="text" class="form-control" value="{{p.local_time().strftime('%H:%M')}}"></input></td>
 					<td class="verta col-md-2"><div class="input-group">
-						<input type="text" class="form-control" id="p_username_{{i}}" value="{{p.user.id()}}"></input>
+						<input type="text" class="form-control" id="p_username_{{i}}" value="{{p.get_name()}}"></input>
 						<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
 					</div></td>
 					<td class="verta"><div class="input-group">
@@ -242,7 +242,7 @@
 				{% for p in artbattle.participants %}
 				<tr>
 					<td class="verta col-md-1">{{p.local_time().strftime('%H:%M')}}</td>
-					<td class="verta"><a href="http://tabun.everypony.ru/profile/{{p.user.id()}}/" target="_blank">{{p.user.id()}}</a></td>
+					<td class="verta"><a href="http://tabun.everypony.ru/profile/{{p.get_name()}}/" target="_blank">{{p.get_name()}}</a></td>
 					<td class="verta"><a href="{{p.art_url}}" target="_blank">{{p.art_url}}</a></td>
 					<td class="verta">
 						{% if p.status == 1 %}
