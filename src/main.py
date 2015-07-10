@@ -4,6 +4,8 @@
 from datetime import datetime, tzinfo, timedelta
 from operator import attrgetter
 
+from HTMLParser import HTMLParser
+
 from google.appengine.api.mail import InboundEmailMessage
 from google.appengine.ext.webapp.mail_handlers import InboundMailHandler
 from google.appengine.ext import ndb
@@ -86,8 +88,8 @@ def is_art_battle_topic(topic):
 def parse_email(msg):
   # Process Art-Battle messages:
   if msg.subject.find(u'У вас новое письмо') != -1:
-    m = re.match(u'Вам пришло новое письмо от пользователя <a href="http://tabun.everypony.ru/profile/(?P<user>.+?)/">.*'+
-                 u'Тема письма: <b>(?P<topic>.+?)</b>.*<img src="(?P<art_url>.+?)"', msg.body_html, re.UNICODE|re.DOTALL)
+    m = re.match(u'.*Вам пришло новое письмо от пользователя <a href="http://tabun\\.everypony\\.ru/profile/(?P<user>.+?)/".*'+
+                 u'Тема письма: <b>(?P<topic>.+?)</b>.*<img src="(?P<art_url>.+?)".*', msg.body_html, re.UNICODE|re.DOTALL)
     if m and is_art_battle_topic(m.group('topic')):
       ab = get_state().current_battle.get()
       if ab:
@@ -127,11 +129,13 @@ class EmailHandler(InboundMailHandler):
     body = in_msg.bodies().next()
     if body[0] != 'text/html':
       logging.warn('HTML body not found')
+    # Unescape because Gmail escapes HTML tags when forwarding
+    body_decoded = HTMLParser().unescape(body[1].decode())
     msg = Email(parent = Email.ANCESTOR_KEY,
                    subject = in_msg.subject,
                    sender = in_msg.sender,
                    to = in_msg.to,
-                   body_html = body[1].decode(),
+                   body_html = body_decoded,
                    read = False)
     msg.put()
     parse_email(msg)
@@ -185,6 +189,9 @@ class Participant(ndb.Model):
   status = ndb.IntegerProperty(default=STATUS_PENDING)
   
   def get_name(self):
+    # Workaround for the fact that apparently python interprets Key ids as
+    # non-unicode strings, and that causes jinja2 templates to fail to render
+    # with a UnicodeDecodeError.
     return self.user.id().decode('utf-8')
   
   def local_time(self):
