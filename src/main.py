@@ -93,10 +93,13 @@ def parse_email(msg):
     if m and is_art_battle_topic(m.group('topic')):
       ab = get_state().current_battle.get()
       if ab:
-        ab.add_participant(m.group('user'), m.group('art_url'), msg.time, msg.key)
-        msg.read = True
-        msg.put()
-        logging.info("Successfully parsed Tabun email %d" % msg.key.id())
+        if ab.phase == ArtBattle.PHASE_BATTLE_ON:
+          ab.add_participant(m.group('user'), m.group('art_url'), msg.time, msg.key)
+          msg.read = True
+          msg.put()
+          logging.info("Successfully parsed Tabun email %d" % msg.key.id())
+        else:
+          logging.warn('Attempting to add participant to Art-Battle %s that is not currently on' % ab.date)
       else:
         logging.error('No current Art-Battle')
     else:
