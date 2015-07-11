@@ -293,7 +293,7 @@ class ArtBattle(ndb.Model):
       user.edit_post(self.battle_post_id, self.blog_id, post_title, post_body, post_tags, draft)
       logging.info('Updated post for Art-Battle %s' % self.date)
 
-  def set_theme(self, theme):
+  def set_theme(self, theme, draft=False):
     """Sets the theme and begins Art-Battle."""
     logging.info("Setting Art-Battle theme: '%s'. Art-Battle begins!" % theme)
     self.theme = theme
@@ -301,7 +301,7 @@ class ArtBattle(ndb.Model):
     if self.battle_post_id:
       self.phase = ArtBattle.PHASE_BATTLE_ON
       self.put()
-      self.post_battle()
+      self.post_battle(draft)
     else:
       raise ArtBattleError('Battle post ID not set')
 
@@ -522,7 +522,7 @@ class ABSetThemeHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
-        ab.set_theme(theme)
+        ab.set_theme(theme, draft=self.request.get('draft'))
       except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)

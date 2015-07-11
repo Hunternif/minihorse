@@ -470,7 +470,11 @@
 	}
 	
 	function set_theme() {
-		post('set_theme', {date:date, theme: $('#theme').val()});
+		post('set_theme', {
+			date:date,
+			theme: $('#theme').val(),
+			draft: $('#draft').prop('checked')
+		});
 	}
 	
 	function open_current() {
