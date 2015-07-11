@@ -268,10 +268,12 @@ class ArtBattle(ndb.Model):
     """Creates a post for the date's Art-Battle. This post will be later updated with the theme.
     If battle_post_id exists, then that post will be updated instead"""
     logging.info("Preparing Art-Battle %s" % self.date)
+    user = get_state().get_admin()
     # Construct post from template:
     template = JINJA_ENVIRONMENT.get_template('post-battle.html')
     template_values = {
       'date': self.date,
+      'admin_login': user.username,
       'cover_art_url': self.cover_art_url,
       'cover_art_author': self.cover_art_author,
       'cover_art_source_url': self.cover_art_source_url,
@@ -281,7 +283,6 @@ class ArtBattle(ndb.Model):
     post_title = u'Арт-Баттл %s' % self.date
     post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, конкурс, %s' % self.date
-    user = get_state().get_admin()
     if not self.battle_post_id:
       ret = user.add_post(self.blog_id, post_title, post_body, post_tags, draft)
       self.battle_post_id = ret[1]
