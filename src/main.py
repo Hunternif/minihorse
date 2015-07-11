@@ -331,7 +331,7 @@ class ArtBattle(ndb.Model):
         has_disqualified = True
         break
     # Construct post from template:
-    participant_sorted = sorted(self.participants, key=attrgetter('votes'), reverse=True)
+    participant_sorted = sorted(self.participants, key=attrgetter('number'))
     template = JINJA_ENVIRONMENT.get_template('post-poll.html')
     template_values = {
       'theme': self.theme,
