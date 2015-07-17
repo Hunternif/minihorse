@@ -3,7 +3,7 @@
 <span class="spoiler"><span class="spoiler-title" onclick="return true;">Работы участников</span><span class="spoiler-body">
 {% set place_no = 1 %}
 {% for place in places %}
-{{place_no|spell_place|capitalize}} место {% if place|length > 1 %}делят между собой{% else %}занимает{% endif %}{% set i = 1 %}{% for p in place %}<span class="spoiler"><span class="spoiler-title" onclick="return true;">Участник {{p.number}}
+{{place_no|spell_place|capitalize}} место {% if place|length > 1 %}делят между собой{% else %}занимает{% endif %}{% set i = 1 %}{% for p in place %}<span class="spoiler"><span class="spoiler-title" onclick="return true;">Участник {{p.number}}{% if p.votes %} ({{p.votes|conjugate_votes}}){% endif %}
 <img src="{{p.art_preview_url}}" /> <ls user="{{p.user.id()}}"/></span><span class="spoiler-body"><img src="{{p.art_url}}" /></span></span>
 {% if i < (place|length - 1) %},{% elif i == (place|length - 1) %}и{% endif %}{% set i = i + 1 %}{% endfor %}
 {% if place_no == 1 %}

@@ -100,3 +100,15 @@ def spell_next_date(date):
     return spell_weekday(date.weekday()) + ' ' + str(date.day) + ' ' + spell_month(date.month)
   else:
     return str(date)
+
+def conjugate_votes(votes):
+  """Accepts a number and formats it like this: '1 голос, 2 голоса, ...'"""
+  if votes > 4 and votes < 21:
+    return str(votes) + u' голосов'
+  digit = votes % 10
+  if digit == 1:
+    return str(votes) + u' голос'
+  elif digit == 2 or digit == 3 or digit == 4:
+    return str(votes) + u' голоса'
+  else:
+    return str(votes) + u' голосов'

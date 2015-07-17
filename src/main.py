@@ -33,6 +33,7 @@ JINJA_ENVIRONMENT = jinja2.Environment(
 JINJA_ENVIRONMENT.filters['spell_place'] = speller.spell_place
 JINJA_ENVIRONMENT.filters['spell_weekday'] = speller.spell_weekday
 JINJA_ENVIRONMENT.filters['spell_next_date'] = speller.spell_next_date
+JINJA_ENVIRONMENT.filters['conjugate_votes'] = speller.conjugate_votes
 
 ##################################### Email ####################################
 
@@ -383,7 +384,7 @@ class ArtBattle(ndb.Model):
     places = [] # Participants grouped by the number of votes
     disqualified = [] # Disqualified participants
     participant_sorted = sorted(self.participants, key=attrgetter('votes'), reverse=True)
-    current_votes = 0
+    current_votes = -1
     current_place = []
     for p in participant_sorted:
       if p.status == Participant.STATUS_APPROVED:
@@ -415,6 +416,7 @@ class ArtBattle(ndb.Model):
     post_title = u'Итоги голосования за Арт-Баттл %s' % self.date
     post_body = template.render(template_values)
     post_tags = u'Арт-Баттл, итоги голосования, %s' % self.date
+    logging.info(post_body)
     user = get_state().get_admin()
     if not self.result_post_id:
       ret = user.add_post(self.blog_id, post_title, post_body, post_tags, draft)
