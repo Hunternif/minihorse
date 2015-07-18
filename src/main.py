@@ -609,7 +609,7 @@ class ABParticipantAddHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
-        username = self.request.get('username')
+        username = self.request.get('username').strip()
         time = datetime.combine(ab.date, moscow_to_utc_time(datetime.strptime(self.request.get('time'), '%H:%M')).time())
         art_url = self.request.get('art_url')
         ab.add_participant(username, art_url, time)
@@ -649,7 +649,7 @@ class ABParticipantsEditHandler(ABBaseHandler):
             to_delete.append(p)
           else:
             p.time = datetime.combine(ab.date, moscow_to_utc_time(datetime.strptime(req['time'], '%H:%M')).time())
-            p.user = TabunUser.get_or_insert(req['username'], parent=TabunUser.ANCESTOR_KEY).key
+            p.user = TabunUser.get_or_insert(req['username'].strip(), parent=TabunUser.ANCESTOR_KEY).key
             p.art_url = req['art_url']
             p.art_preview_url = req['art_preview_url']
             p.number = int(req['number'])
