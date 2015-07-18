@@ -90,7 +90,7 @@ def parse_email(msg):
   # Process Art-Battle messages:
   if msg.subject.find(u'У вас новое письмо') != -1:
     m = re.match(u'.*Вам пришло новое письмо от пользователя <a href="http://tabun\\.everypony\\.ru/profile/(?P<user>.+?)/".*'+
-                 u'Тема письма: <b>(?P<topic>.+?)</b>.*<img src="(?P<art_url>.+?)".*', msg.body_html, re.UNICODE|re.DOTALL)
+                 u'Тема письма: <b>(?P<topic>.+?)</b>.*"(?P<art_url>https?://i\.imgur.+?)".*', msg.body_html, re.UNICODE|re.DOTALL)
     if m and is_art_battle_topic(m.group('topic')):
       ab = get_state().current_battle.get()
       if ab:
