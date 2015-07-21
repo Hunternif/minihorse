@@ -473,7 +473,7 @@ class ABCreateHandler(ABBaseHandler):
         logging.info("Created Art-Battle on '%s'" % date)
       self.redirect('/artbattle/edit?date=%s' % date)
     else:
-      self.redirect('/artbattle/edit')
+      self.redirect('/artbattle/current')
 
 class ABDeleteHandler(ABBaseHandler):
   def delete(self, *args):
@@ -677,7 +677,7 @@ class ABCurrentHandler(ABBaseHandler):
     if state.current_battle:
       self.redirect('/artbattle/edit?date=%s' % state.current_battle.get().date)
     else:
-      self.redirect('/artbattle/edit')
+      self.redirect('/artbattle/current')
   def post(self, *args):
     state = get_state()
     ab = self.get_ArtBattle()
@@ -705,7 +705,7 @@ class ABLoginHandler(ABBaseHandler):
       state.login_key = user.key
       state.put()
       logging.info('Logged in as %s' % state.login)
-      self.redirect('/artbattle/edit')
+      self.redirect('/artbattle/current')
     except (tabun_api.TabunError, ValueError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
