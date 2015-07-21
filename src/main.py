@@ -341,7 +341,7 @@ class ArtBattle(ndb.Model):
     }
     post_title = u'Голосование за Арт-Баттл %s' % self.date
     post_body = template.render(template_values)
-    post_tags = u'Арт-Баттл, голосование, %s' % self.date
+    post_tags = u'Арт-Баттл, голосование, %s, %s' % (self.date, self.theme)
     user = get_state().get_admin()
     if not self.poll_post_id:
       ret = user.add_poll(self.blog_id, post_title, choices, post_body, post_tags, draft)
@@ -415,7 +415,7 @@ class ArtBattle(ndb.Model):
     
     post_title = u'Итоги голосования за Арт-Баттл %s' % self.date
     post_body = template.render(template_values)
-    post_tags = u'Арт-Баттл, итоги голосования, %s' % self.date
+    post_tags = u'Арт-Баттл, итоги голосования, %s, %s' % (self.date, self.theme)
     logging.info(post_body)
     user = get_state().get_admin()
     if not self.result_post_id:
