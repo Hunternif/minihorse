@@ -22,6 +22,8 @@ import webapp2
 
 import fix_libs
 import tabun_api
+# Use HTTPS:
+tabun_api.http_host = u'https://tabun.everypony.ru'
 
 ################################### Templates ##################################
 
