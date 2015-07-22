@@ -119,13 +119,15 @@ def parse_tabun_messages(art_battle):
   """Parse private messages on Tabun and add participants to the given Art-Battle base on the result."""
   user = get_state().get_admin()
   for talk in user.get_talk_list():
-    if talk.title == u'Арт-Баттл %s' % art_battle.date:
+    if talk.talk_id not in art_battle.parsed_message_ids and talk.title == u'Арт-Баттл %s' % art_battle.date:
       talk = user.get_talk(talk.talk_id)
       # Convert time from local to UTC and then to naive datetime:
       time = user_time_to_utc(datetime.fromtimestamp(mktime(talk.date))).replace(tzinfo=None)
       m = re.match(u'.*"(?P<art_url>https?://i\.imgur.+?)".*', talk.raw_body, re.UNICODE|re.DOTALL)
       if m:
         art_battle.add_participant(talk.author, m.group('art_url'), time)
+        art_battle.parsed_message_ids.append(talk.talk_id)
+        art_battle.put()
         logging.info('Successfully parsed Tabun private message %d' % talk.talk_id)
       else:
         logging.error('Failed to parse Tabun private message %d' % talk.talk_id)
@@ -247,6 +249,9 @@ class ArtBattle(ndb.Model):
   theme = ndb.StringProperty()
   participants = ndb.StructuredProperty(Participant, repeated=True)
   total_votes = ndb.IntegerProperty()
+  
+  # List of IDs of Tabun private messages parsed, so that the same artwork won't be added twice
+  parsed_message_ids = ndb.IntegerProperty(repeated=True)
   
   cover_art_url = ndb.StringProperty()
   cover_art_author = ndb.KeyProperty(kind='TabunUser') # used if cover art is custom-made by a user
