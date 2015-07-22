@@ -13,7 +13,7 @@
 	<div class="page-header">
 		<h1>Sign in to tabun.everypony.ru</h1>
 	</div>
-	<form class="form-horizontal" method="POST" action="/login">
+	<form id="login_form" class="form-horizontal">
 		<div class="form-group">
 			<label class="col-sm-2 control-label">Login</label>
 			<div class="col-sm-3">
@@ -26,18 +26,51 @@
 				<input type="password" class="form-control" name="password"></input>
 			</div>
 		</div>
-		<hr>
-		<h2>Time Zone: UTC+...</h2>
 		<div class="form-group">
-			<label class="col-sm-2 control-label">Hours</label>
-			<div class="col-sm-1">
-				<input type="text" class="form-control" name="tz_offset_hours" value="{{hours}}"></input>
-			</div>
-		</div>
-		<div class="form-group">
-			<label class="col-sm-2 control-label">Minutes</label>
-			<div class="col-sm-1">
-				<input type="text" class="form-control" name="tz_offset_minutes" value="{{minutes}}"></input>
+			<label class="col-sm-2 control-label">Time Zone</label>
+			<div class="col-sm-3">
+				<select id="timezone_select" name="timezone" class="form-control">
+					<option value="-12" >[UTC − 12] Меридиан смены дат (запад)</option>
+					<option value="-11" >[UTC − 11] о. Мидуэй, Самоа</option>
+					<option value="-10" >[UTC − 10] Гавайи</option>
+					<option value="-9.5" >[UTC − 9:30] Маркизские острова</option>
+					<option value="-9" >[UTC − 9] Аляска</option>
+					<option value="-8" >[UTC − 8] Тихоокеанское время (США и Канада) и Тихуана</option>
+					<option value="-7" >[UTC − 7] Аризона</option>
+					<option value="-6" >[UTC − 6] Мехико, Центральная Америка, Центральное время (США и Канада)</option>
+					<option value="-5" >[UTC − 5] Индиана (восток), Восточное время (США и Канада)</option>
+					<option value="-4.5" >[UTC − 4:30] Венесуэла</option>
+					<option value="-4" >[UTC − 4] Сантьяго, Атлантическое время (Канада)</option>
+					<option value="-3.5" >[UTC − 3:30] Ньюфаундленд</option>
+					<option value="-3" >[UTC − 3] Бразилия, Гренландия</option>
+					<option value="-2" >[UTC − 2] Среднеатлантическое время</option>
+					<option value="-1" >[UTC − 1] Азорские острова, острова Зелёного мыса</option>
+					<option value="0" >[UTC] Время по Гринвичу: Дублин, Лондон, Лиссабон, Эдинбург</option>
+					<option value="1" >[UTC + 1] Берлин, Мадрид, Париж, Рим, Западная Центральная Африка</option>
+					<option value="2" >[UTC + 2] Калининград, Афины, Вильнюс, Киев, Рига, Таллин, Центральная Африка</option>
+					<option value="3">[UTC + 3] Волгоград, Москва, Санкт-Петербург, Минск</option>
+					<option value="3.5" >[UTC + 3:30] Тегеран</option>
+					<option value="4" >[UTC + 4] Самара, Ереван, Тбилиси</option>
+					<option value="4.5" >[UTC + 4:30] Кабул</option>
+					<option value="5" >[UTC + 5] Баку, Исламабад, Карачи, Оренбург, Ташкент</option>
+					<option value="5.5" >[UTC + 5:30] Бомбей, Калькутта, Мадрас, Нью-Дели</option>
+					<option value="5.75" >[UTC + 5:45] Катманду</option>
+					<option value="6" >[UTC + 6] Екатеринбург, Алматы, Астана</option>
+					<option value="6.5" >[UTC + 6:30] Рангун</option>
+					<option value="7" >[UTC + 7] Бангкок, Новосибирск, Омск</option>
+					<option value="8" >[UTC + 8] Гонконг, Красноярск, Пекин, Сингапур</option>
+					<option value="8.75" >[UTC + 8:45] Юго-восточная Западная Австралия</option>
+					<option value="9" >[UTC + 9] Токио, Сеул, Иркутск</option>
+					<option value="9.5" >[UTC + 9:30] Дарвин</option>
+					<option value="10" >[UTC + 10] Чита, Якутск, Канберра, Мельбурн, Сидней</option>
+					<option value="10.5" >[UTC + 10:30] Лорд-Хау</option>
+					<option value="11" >[UTC + 11] Владивосток, Соломоновы о-ва</option>
+					<option value="11.5" >[UTC + 11:30] Остров Норфолк</option>
+					<option value="12" >[UTC + 12] Камчатка, Магадан, Сахалин, Новая Зеландия, Фиджи</option>
+					<option value="12.75" >[UTC + 12:45] Острова Чатем</option>
+					<option value="13" >[UTC + 13] Острова Феникс, Тонга</option>
+					<option value="14" >[UTC + 14] Остров Лайн</option>
+				</select>
 			</div>
 		</div>
 		<div class="form-group">
@@ -57,34 +90,36 @@
 <script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 <script type="text/javascript">
-	$(document).ready(function () {});
+	$(document).ready(function () {
+		// Select saved timezone:
+		$('#timezone_select').val({{timezone}});
+		
+		// Override form submit function to use AJAX:
+		$('#login_form').submit(function() {
+			$.ajax({
+				url: '/login',
+				type: 'POST',
+				data: $("#login_form").serialize(),
+				success: function(result) {
+					location.href = '/artbattle/current';
+				},
+				error: function(result) {
+					if (result.responseText) {
+						alert(result.responseText);
+					}
+				},
+				complete: function() {
+					$('.btn').button('reset');
+				}
+			});
+			return false; // avoid executing the actual submit of the form.
+		});
+	});
+	
 	// Assuming all buttons have loading state except dropdown list
 	$('.btn:not(.dropdown-toggle)').on('click', function(){
 		$(this).button('loading');
 	});
-	function login() {
-		$.ajax({
-			url: '/login',
-			type: 'POST',
-			data: {
-				login: $('#login').val(),
-				password: $('#password').val(),
-				tz_offset_hours: $('#tz_offset_hours').val(),
-				tz_offset_minutes: $('#tz_offset_minutes').val()
-			},
-			success: function(result) {
-				location.href = '/artbattle/current';
-			},
-			error: function(result) {
-				if (result.responseText) {
-					alert(result.responseText);
-				}
-			},
-			complete: function() {
-				$('.btn').button('reset');
-			}
-		});
-	}
 </script>
 </body>
 </html>

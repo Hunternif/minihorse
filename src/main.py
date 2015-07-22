@@ -44,12 +44,12 @@ ZERO = timedelta(0)
 
 class FixedOffsetTZ(tzinfo):
   """A time zone which is offset from UTC by a fixed number of minutes"""
-  def __init__(self, hours=0, minutes=0, name=None):
-    self.__offset = timedelta(hours=hours, minutes=minutes)
+  def __init__(self, offset, name):
+    self.__offset = timedelta(hours=offset)
     if name:
       self.__name = name
     else:
-      self.__name ='Fixed Offset %s h %s m' % (hours, minutes)
+      self.__name ='Fixed Offset UTC %f' % offset
   def utcoffset(self, dt):
     return self.__offset
   def tzname(self, dt):
@@ -58,8 +58,8 @@ class FixedOffsetTZ(tzinfo):
     return ZERO
 
 # Note: App Engine uses UTC as the timezone in Datastore!
-UTC = FixedOffsetTZ(name='UTC')
-MOSCOW_TIME = FixedOffsetTZ(hours=3, name='Moscow Time')
+UTC = FixedOffsetTZ(0, 'UTC')
+MOSCOW_TIME = FixedOffsetTZ(3, 'Moscow Time')
 
 def utc_to_user_time(datetime):
   """Only accepts datetime!"""
@@ -196,11 +196,10 @@ class ArtBattleState(ndb.Model):
     return tabun_api.User(login=self.login, phpsessid=self.phpsessid, security_ls_key=self.security_ls_key, key=self.login_key)
   
   # Current user's time settings:
-  tz_offset_hours = ndb.IntegerProperty(default=3) # Default is Moscow: UTC+3:00
-  tz_offset_minutes = ndb.IntegerProperty(default=0)
+  tz_offset_hours = ndb.FloatProperty(default=3) # Default is Moscow: UTC+3:00
   
   def get_user_timezone(self):
-    return FixedOffsetTZ(hours=self.tz_offset_hours, minutes=self.tz_offset_minutes, name='User Local Time')
+    return FixedOffsetTZ(self.tz_offset_hours, 'User Local Time')
 
 def get_state():
   return ArtBattleState.get_or_insert(ArtBattleState.KEY_ID)
@@ -727,8 +726,7 @@ class ABLoginHandler(ABBaseHandler):
     template = JINJA_ENVIRONMENT.get_template('login.html')
     template_values = {
       'user': state.login,
-      'hours': state.tz_offset_hours,
-      'minutes': state.tz_offset_minutes,
+      'timezone': state.tz_offset_hours,
     }
     self.response.write(template.render(template_values))
   def post(self, *args):
@@ -740,8 +738,8 @@ class ABLoginHandler(ABBaseHandler):
       state.phpsessid = user.phpsessid
       state.security_ls_key = user.security_ls_key
       state.login_key = user.key
-      state.tz_offset_hours = int(self.request.get('tz_offset_hours'))
-      state.tz_offset_minutes = int(self.request.get('tz_offset_minutes'))
+      tz = self.request.get('timezone')
+      state.tz_offset_hours = float(tz)
       state.put()
       logging.info('Logged in as %s' % state.login)
       self.redirect('/artbattle/current')
