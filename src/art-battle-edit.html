@@ -51,7 +51,7 @@
 				</div>
 			</form>
 			<div class="col-sm-offset-2 col-sm-10">
-				<span>Logged in as <b>{{user}}</b>.</span>
+				<span>Logged in as <b>{{user}}</b>, your local time is <b>{{local_time}}</b>.</span>
 				<a href="/login">Change User</a> | <a href="/inbox?unread=true">Email Inbox</a>
 			</div>
 		</div>
@@ -192,6 +192,7 @@
 			{% else %}
 			<div class="col-md-10">
 				<button type="button" class="btn btn-default" id="btn_edit_p" style="margin-top:20px; margin-right:0.5em" onclick="edit_participants()">Edit</button>
+				<button type="button" class="btn btn-default" id="btn_parse_messages" style="margin-top:20px; margin-right:0.5em" onclick="parse_messages()">Parse Messages</button>
 				<button type="button" class="btn btn-default" id="btn_count_votes" style="margin-top:20px" onclick="post_with_date('count_votes')">Count Votes</button>
 			</div>
 			{% endif %}
@@ -490,6 +491,10 @@
 				$('#btn_make_current').button('reset');
 			}
 		});
+	}
+	
+	function parse_messages() {
+		post('/parse_tabun_messages', {date: date});
 	}
 	
 	//TODO: fix smaller screen layout.

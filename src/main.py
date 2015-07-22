@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime, tzinfo, timedelta
+from time import mktime
 from operator import attrgetter
 
 from HTMLParser import HTMLParser
@@ -42,9 +43,13 @@ JINJA_ENVIRONMENT.filters['conjugate_votes'] = speller.conjugate_votes
 ZERO = timedelta(0)
 
 class FixedOffsetTZ(tzinfo):
-  def __init__(self, offset, name):
-    self.__offset = timedelta(hours = offset)
-    self.__name = name
+  """A time zone which is offset from UTC by a fixed number of minutes"""
+  def __init__(self, hours=0, minutes=0, name=None):
+    self.__offset = timedelta(hours=hours, minutes=minutes)
+    if name:
+      self.__name = name
+    else:
+      self.__name ='Fixed Offset %s h %s m' % (hours, minutes)
   def utcoffset(self, dt):
     return self.__offset
   def tzname(self, dt):
@@ -53,15 +58,15 @@ class FixedOffsetTZ(tzinfo):
     return ZERO
 
 # Note: App Engine uses UTC as the timezone in Datastore!
-UTC = FixedOffsetTZ(0, 'UTC')
-MOSCOW_TIME = FixedOffsetTZ(3, 'Moscow Time')
+UTC = FixedOffsetTZ(name='UTC')
+MOSCOW_TIME = FixedOffsetTZ(hours=3, name='Moscow Time')
 
-def utc_to_moscow_time(datetime):
+def utc_to_user_time(datetime):
   """Only accepts datetime!"""
-  return datetime.replace(tzinfo=UTC).astimezone(MOSCOW_TIME)
-def moscow_to_utc_time(datetime):
+  return datetime.replace(tzinfo=UTC).astimezone(get_state().get_user_timezone())
+def user_time_to_utc(datetime):
   """Only accepts datetime!"""
-  return datetime.replace(tzinfo=MOSCOW_TIME).astimezone(UTC)
+  return datetime.replace(tzinfo=get_state().get_user_timezone()).astimezone(UTC)
 
 class Email(ndb.Model):
   subject = ndb.StringProperty()
@@ -89,6 +94,8 @@ def is_art_battle_topic(topic):
   return re.match(u'(арт(-)?)?батт?л', topic.lower(), re.UNICODE) != None
 
 def parse_email(msg):
+  """Parse Email assuming it is a notification from Tabun about a private message
+  and add participant to the current Art-Battle based on the result."""
   # Process Art-Battle messages:
   if msg.subject.find(u'У вас новое письмо') != -1:
     m = re.match(u'.*Вам пришло новое письмо от пользователя <a href="http://tabun\\.everypony\\.ru/profile/(?P<user>.+?)/".*'+
@@ -107,6 +114,21 @@ def parse_email(msg):
         logging.error('No current Art-Battle')
     else:
       logging.error("Couldn't parse Tabun email %d" % msg.key.id())
+
+def parse_tabun_messages(art_battle):
+  """Parse private messages on Tabun and add participants to the given Art-Battle base on the result."""
+  user = get_state().get_admin()
+  for talk in user.get_talk_list():
+    if talk.title == u'Арт-Баттл %s' % art_battle.date:
+      talk = user.get_talk(talk.talk_id)
+      # Convert time from local to UTC and then to naive datetime:
+      time = user_time_to_utc(datetime.fromtimestamp(mktime(talk.date))).replace(tzinfo=None)
+      m = re.match(u'.*"(?P<art_url>https?://i\.imgur.+?)".*', talk.raw_body, re.UNICODE|re.DOTALL)
+      if m:
+        art_battle.add_participant(talk.author, m.group('art_url'), time)
+        logging.info('Successfully parsed Tabun private message %d' % talk.talk_id)
+      else:
+        logging.error('Failed to parse Tabun private message %d' % talk.talk_id)
 
 class ProcessEmailHandler(webapp2.RequestHandler):
   def post(self):
@@ -170,6 +192,13 @@ class ArtBattleState(ndb.Model):
   
   def get_admin(self):
     return tabun_api.User(login=self.login, phpsessid=self.phpsessid, security_ls_key=self.security_ls_key, key=self.login_key)
+  
+  # Current user's time settings:
+  tz_offset_hours = ndb.IntegerProperty(default=3) # Default is Moscow: UTC+3:00
+  tz_offset_minutes = ndb.IntegerProperty(default=0)
+  
+  def get_user_timezone(self):
+    return FixedOffsetTZ(hours=self.tz_offset_hours, minutes=self.tz_offset_minutes, name='User Local Time')
 
 def get_state():
   return ArtBattleState.get_or_insert(ArtBattleState.KEY_ID)
@@ -201,7 +230,7 @@ class Participant(ndb.Model):
     return self.user.id().decode('utf-8')
   
   def local_time(self):
-    return utc_to_moscow_time(self.time)
+    return utc_to_user_time(self.time)
 
 class ArtBattle(ndb.Model):
   PHASE_UPCOMING = 0
@@ -437,7 +466,7 @@ class ArtBattle(ndb.Model):
     # TODO: resize image and upload to imgur.com (if needed)
     p = Participant(user=user.key, art_url=art_url, time=time, original_email=original_email_key, number=len(self.participants)+1)
     # Assuming an imgur.com URL, the preview URL is "....s.jpg/png"
-    p.art_preview_url = art_url[:-4] + 's' + art_url[-4:]
+    p.art_preview_url = art_url.replace('.jpg', 's.jpg').replace('.png', 's.png')
     self.participants.append(p)
     self.put()
 
@@ -490,6 +519,7 @@ class ABEditorHandler(ABBaseHandler):
     template = JINJA_ENVIRONMENT.get_template('art-battle-edit.html')
     template_values = {
       'user': get_state().login,
+      'local_time': utc_to_user_time(datetime.now()).strftime('%H:%M'),
       'edit_participants': self.request.get('edit_participants', 0) != 0
     }
     # Read list of dates:
@@ -612,7 +642,7 @@ class ABParticipantAddHandler(ABBaseHandler):
     if ab:
       try:
         username = self.request.get('username').strip()
-        time = datetime.combine(ab.date, moscow_to_utc_time(datetime.strptime(self.request.get('time'), '%H:%M')).time())
+        time = datetime.combine(ab.date, user_time_to_utc(datetime.strptime(self.request.get('time'), '%H:%M')).time())
         art_url = self.request.get('art_url')
         ab.add_participant(username, art_url, time)
         ab.put()
@@ -650,7 +680,7 @@ class ABParticipantsEditHandler(ABBaseHandler):
           if req['delete']:
             to_delete.append(p)
           else:
-            p.time = datetime.combine(ab.date, moscow_to_utc_time(datetime.strptime(req['time'], '%H:%M')).time())
+            p.time = datetime.combine(ab.date, user_time_to_utc(datetime.strptime(req['time'], '%H:%M')).time())
             p.user = TabunUser.get_or_insert(req['username'].strip(), parent=TabunUser.ANCESTOR_KEY).key
             p.art_url = req['art_url']
             p.art_preview_url = req['art_preview_url']
@@ -691,7 +721,9 @@ class ABLoginHandler(ABBaseHandler):
     state = get_state()
     template = JINJA_ENVIRONMENT.get_template('login.html')
     template_values = {
-      'user': state.login
+      'user': state.login,
+      'hours': state.tz_offset_hours,
+      'minutes': state.tz_offset_minutes,
     }
     self.response.write(template.render(template_values))
   def post(self, *args):
@@ -703,6 +735,8 @@ class ABLoginHandler(ABBaseHandler):
       state.phpsessid = user.phpsessid
       state.security_ls_key = user.security_ls_key
       state.login_key = user.key
+      state.tz_offset_hours = int(self.request.get('tz_offset_hours'))
+      state.tz_offset_minutes = int(self.request.get('tz_offset_minutes'))
       state.put()
       logging.info('Logged in as %s' % state.login)
       self.redirect('/artbattle/current')
@@ -710,6 +744,15 @@ class ABLoginHandler(ABBaseHandler):
         logging.error(traceback.format_exc())
         self.response.set_status(403)
         self.response.write(e.message)
+
+class ABParseTabunMsgsHandler(ABBaseHandler):
+  def post(self, *args):
+    try:
+      parse_tabun_messages(self.get_ArtBattle())
+    except (tabun_api.TabunError, ArtBattleError) as e:
+      logging.error(traceback.format_exc())
+      self.response.set_status(403)
+      self.response.write(e.message)
 
 
 ##################################### Misc #####################################
@@ -739,4 +782,5 @@ app = webapp2.WSGIApplication([
   ('/artbattle/participant/edit', ABParticipantsEditHandler),
   ('/artbattle/current', ABCurrentHandler),
   ('/login', ABLoginHandler),
+  ('/parse_tabun_messages', ABParseTabunMsgsHandler),
 ], debug=True)
