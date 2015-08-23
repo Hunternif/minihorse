@@ -148,9 +148,11 @@ class Comment(object):
         self.body, self.raw_body = utils.normalize_body(body, raw_body)
 
     def __repr__(self):
-        o = ("<" + ("deleted " if self.deleted else "") + "comment " + \
-            ((self.blog + "/" + text(self.post_id) + "/") if self.blog and self.post_id else "") + \
-            text(self.comment_id) + ">")
+        o = (
+            "<" + ("deleted " if self.deleted else "") + "comment " +
+            ((self.blog + "/" + text(self.post_id) + "/") if self.blog and self.post_id else "") +
+            text(self.comment_id) + ">"
+        )
         return o.encode('utf-8') if PY2 else o
 
     def __str__(self):
@@ -189,6 +191,10 @@ class Blog(object):
 
     def __unicode__(self):
         return self.__repr__().decode('utf-8', 'replace')
+
+    @property
+    def url(self):
+        return http_host + '/blog/' + self.blog + '/'
 
 
 class StreamItem(object):
@@ -421,9 +427,13 @@ class User(object):
             data = resp.read(1024 * 25)
             resp.close()
             cook = BaseCookie()
-            cook.load(resp.headers.get("set-cookie", ""))
+            if PY2:
+                cook.load(resp.headers.get("set-cookie") or b'')
+            else:
+                for x in resp.headers.get_all("set-cookie") or ():
+                    cook.load(x)
             if not self.phpsessid:
-                self.phpsessid = cook.get("PHPSESSID")
+                self.phpsessid = cook.get("TABUNSESSIONID")
                 if self.phpsessid:
                     self.phpsessid = self.phpsessid.value
             if not self.key:
@@ -542,13 +552,12 @@ class User(object):
         if data is not None:
             url.data = data.encode('utf-8') if isinstance(data, text) else data
 
-
         request_headers = dict(http_headers)
         if headers:
             request_headers.update(headers)
 
         if with_cookies and self.phpsessid:
-            request_headers['Cookie'] = ("PHPSESSID=%s; key=%s; LIVESTREET_SECURITY_KEY=%s" % (
+            request_headers['Cookie'] = ("TABUNSESSIONID=%s; key=%s; LIVESTREET_SECURITY_KEY=%s" % (
                 self.phpsessid, self.key, self.security_ls_key
             )).encode('utf-8')
 
@@ -589,6 +598,10 @@ class User(object):
             except KeyboardInterrupt:
                 raise
             except urequest.HTTPError as exc:
+                if exc.getcode() == 404:
+                    data = exc.read(8192)
+                    if b'//projects.everypony.ru/error/main.css' in data:
+                        raise TabunError('Static 404', -404)
                 raise TabunError(code=exc.getcode())
             except urequest.URLError as exc:
                 raise TabunError(exc.reason, -exc.reason.errno if exc.reason.errno else 0)
@@ -610,24 +623,24 @@ class User(object):
         К запросу добавлется печенька PHPSESSID; with_cookies=False отключает это.
         По умолчанию соблюдает между запросами временной интервал query_interval (который по умолчанию 0); nowait=True отправляет запрос немедленно.
         Может кидаться исключением TabunError."""
-        
+
         req = self.build_request(url, data, headers, with_cookies)
         return self.send_request(req, redir, nowait, timeout)
 
-    def send_form(self, url, fields=(), files=(), headers={}, redir=True):
+    def send_form(self, url, fields=(), files=(), headers=None, redir=True):
         """Формирует multipart/form-data запрос и отправляет его через функцию urlopen."""
         content_type, data = utils.encode_multipart_formdata(fields, files)
-        headers = headers.copy()
+        headers = dict(headers or ())
         headers['content-type'] = content_type
         return self.urlopen(url, data, headers, redir)
 
-
-    def ajax(self, url, fields={}, files=(), headers={}, throw_if_error=True):
+    def ajax(self, url, fields=None, files=(), headers=None, throw_if_error=True):
         """Отправляет ajax-запрос и возвращает распарсенный json-ответ. Или кидается исключением TabunResultError в случае ошибки."""
         self.check_login()
+        headers = dict(headers or ())
         headers['x-requested-with'] = 'XMLHttpRequest'
         fields['security_ls_key'] = self.security_ls_key
-        data = self.send_form(url, fields, files, headers=headers).read()
+        data = self.send_form(url, fields or {}, files, headers=headers).read()
 
         try:
             data = self.jd.decode(data.decode('utf-8'))
@@ -672,7 +685,7 @@ class User(object):
         except TabunError:
             if not check_if_error or not self.username:
                 raise
-            url = '/topic/saved/' if draft else '/profile/' + urequest.quote(self.username.encode('utf-8')).decode('utf-8') + '/created/topics/'
+            url = '/topic/saved/' if draft else '/profile/' + urequest.quote(self.username.encode('utf-8')) + '/created/topics/'
 
             try:
                 posts = self.get_posts(url)
@@ -684,24 +697,24 @@ class User(object):
                 if posts and post.title == text(title) and post.author == self.username:
                     return post.blog, post.post_id
 
-            return None, None
+            raise
         else:
             return parse_post_url(link)
-    
+
     def add_poll(self, blog_id, title, choices, body, tags, draft=False, check_if_error=False):
-        """EXPERIMENTAL! Создает опрос и возвращает имя блога с номером поста в случае удачи или
-        (None, None) в случае неудачи.
+        """Создает опрос и возвращает имя блога с номером поста в случае удачи или
+        (None, None)  случае неудачи.
         Вариантов ответов не может быть более 20 штук! Иначе кидается исключение.
         При check_if_error=True проверяет наличие поста по заголовку даже в случае ошибки (если, например, таймаут или 404, но пост, как иногда бывает, добавляется)."""
         if len(choices) > 20:
-          raise TabunError("Can't have more than 20 choices in poll, but had %d" % len(choices))
-        
+            raise TabunError("Can't have more than 20 choices in poll, but had %d" % len(choices))
+
         self.check_login()
         blog_id = int(blog_id if blog_id else 0)
-        
+
         if not isinstance(tags, text_types):
             tags = ", ".join(tags)
-        
+
         fields = [
             ('topic_type', 'question'),
             ('security_ls_key', self.security_ls_key),
@@ -712,12 +725,12 @@ class User(object):
         ]
         for choice in choices:
             fields.append(('answer[]', choice))
-        
+
         if draft:
             fields.append(('submit_topic_save', "Сохранить в черновиках"))
         else:
             fields.append(('submit_topic_publish', "Опубликовать"))
-        
+
         try:
             result = self.send_form('/question/add/', fields, redir=False)
             data = result.read()
@@ -729,7 +742,7 @@ class User(object):
         except TabunError:
             if not check_if_error or not self.username:
                 raise
-            url = '/topic/saved/' if draft else '/profile/' + urequest.quote(self.username.encode('utf-8')).decode('utf-8') + '/created/topics/'
+            url = '/topic/saved/' if draft else '/profile/' + urequest.quote(self.username.encode('utf-8')) + '/created/topics/'
 
             try:
                 posts = self.get_posts(url)
@@ -744,7 +757,7 @@ class User(object):
             return None, None
         else:
             return parse_post_url(link)
-    
+
     def create_blog(self, title, url, description, rating_limit=0, closed=False):
         """Создаёт блог и возвращает его url-имя или None в случае неудачи."""
         self.check_login()
@@ -857,6 +870,7 @@ class User(object):
         del section2
 
         section = raw_data[section:raw_data.find('</section>', section + 1) + 10]
+        section = utils.replace_cloudflare_emails(section)
         section = utils.parse_html_fragment(section)
         if not section:
             return []
@@ -874,6 +888,7 @@ class User(object):
             req = self.urlopen(url)
             url = req.url
             raw_data = req.read()
+        raw_data = utils.replace_cloudflare_emails(raw_data)
 
         posts = []
 
@@ -924,6 +939,7 @@ class User(object):
             req = self.urlopen(url)
             url = req.url
             raw_data = req.read()
+        raw_data = utils.replace_cloudflare_emails(raw_data)
 
         posts = self.get_posts(url, raw_data=raw_data)
         if not posts:
@@ -950,6 +966,7 @@ class User(object):
         raw_data = utils.find_substring(raw_data, b'<div class="comments', b'<!-- /content -->', extend=True, with_end=False)
         if not raw_data:
             return {}
+        raw_data = utils.replace_cloudflare_emails(raw_data)
         escaped_data = utils.escape_comment_contents(utils.escape_topic_contents(raw_data, True))
         div = utils.parse_html_fragment(escaped_data)
         if not div:
@@ -1039,6 +1056,7 @@ class User(object):
             raw_data = req.read()
             del req
         data = utils.find_substring(raw_data, b'<div class="blog-top">', b'<div class="nav-menu-wrapper">', with_end=False)
+        data = utils.replace_cloudflare_emails(data)
 
         node = utils.parse_html_fragment(b'<div>' + data + b'</div>')
         if not node:
@@ -1207,6 +1225,7 @@ class User(object):
         if not raw_data:
             return []
 
+        raw_data = utils.replace_cloudflare_emails(raw_data)
         node = utils.parse_html_fragment(raw_data)[0]
         del raw_data
         node = node.find("ul")
@@ -1282,11 +1301,12 @@ class User(object):
 
     def get_profile(self, username=None, raw_data=None):
         if not raw_data:
-            raw_data = self.urlopen("/profile/" + text(username)).read()
+            raw_data = self.urlopen("/profile/" + urequest.quote(text(username).encode('utf-8'))).read()
 
         data = utils.find_substring(raw_data, b'<div id="content"', b'<!-- /content ', extend=True, with_end=False)
         if not data:
             return
+        data = utils.replace_cloudflare_emails(data)
         node = utils.parse_html_fragment(data)
         if not node:
             return
@@ -1467,6 +1487,7 @@ class User(object):
             extend=True, with_end=False
         )
 
+        raw_data = utils.replace_cloudflare_emails(raw_data)
         form = utils.parse_html_fragment(raw_data)
         if len(form) == 0:
             return None
@@ -1503,6 +1524,7 @@ class User(object):
 
         if not raw_data:
             return
+        raw_data = utils.replace_cloudflare_emails(raw_data)
         form = utils.parse_html_fragment(raw_data)
         if not form:
             return
@@ -1589,7 +1611,6 @@ class User(object):
         if '/talk/read/' in link:
             return int(link.rstrip('/').rsplit('/', 1)[-1])
 
-
     def get_talk_list(self, raw_data=None):
         """Возвращает список объектов Talk с личными сообщениями."""
         self.check_login()
@@ -1602,6 +1623,7 @@ class User(object):
         if not raw_data:
             return []
 
+        raw_data = utils.replace_cloudflare_emails(raw_data)
         node = utils.parse_html_fragment(raw_data)[0]
 
         elems = []
@@ -1625,6 +1647,7 @@ class User(object):
         if not data:
             return
 
+        data = utils.replace_cloudflare_emails(data)
         item = utils.parse_html_fragment(data)[0]
         title = item.find("header").find("h1").text
         body = item.xpath('div[@class="topic-content text"]')
@@ -1653,6 +1676,7 @@ class User(object):
         raw_data = utils.find_substring(raw_data, b'<ul class="stream-list', b'<!-- /content', with_end=False)
         if not raw_data:
             return []
+        raw_data = utils.replace_cloudflare_emails(raw_data)
         node = utils.parse_html_fragment(raw_data[:raw_data.rfind(b'</ul>')])
         if not node:
             return []
@@ -1909,7 +1933,8 @@ def parse_post(item):
         poll = parse_poll(poll[0])
 
     fav = footer.xpath('ul[@class="topic-info"]/li[@class="topic-info-favourite"]')
-    favourite = utils.find_substring(fav[0][1].text, '>', '</', with_start=False, with_end=False).strip()
+    # favourite = utils.find_substring(fav[0][1].text, '>', '</', with_start=False, with_end=False).strip()
+    favourite = 0
     try:
         favourite = int(favourite) if favourite else 0
     except ValueError:
@@ -2094,7 +2119,11 @@ def parse_comment(node, post_id, blog=None, parent_id=None):
         else:
             info = info[0]
 
-        comment_id = int(info.xpath('li[@class="comment-link"]/a')[0].get('href').rsplit("/", 1)[-1])
+        comment_id = info.xpath('li[@class="comment-link"]/a')[0].get('href')
+        if '#comment' in comment_id:
+            comment_id = int(comment_id.rsplit('#comment', 1)[-1])
+        else:
+            comment_id = int(comment_id.rstrip('/').rsplit('/', 1)[-1])
 
         unread = "comment-new" in node.get("class", "")
         deleted = "comment-deleted" in node.get("class", "")

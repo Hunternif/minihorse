@@ -91,7 +91,7 @@ class InboxHandler(webapp2.RequestHandler):
     self.response.write(template.render(template_values))
 
 def is_art_battle_topic(topic):
-  return re.match(u'(арт(-)?)?батт?л', topic.lower(), re.UNICODE) != None
+  return re.match(u'.*(арт(-)?)?батт?л.*', topic.lower(), re.UNICODE) != None
 
 def parse_email(msg):
   """Parse Email assuming it is a notification from Tabun about a private message
