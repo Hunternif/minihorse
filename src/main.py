@@ -649,6 +649,7 @@ class ABParticipantAddHandler(ABBaseHandler):
         time = datetime.combine(ab.date, user_time_to_utc(datetime.strptime(self.request.get('time'), '%H:%M')).time())
         art_url = self.request.get('art_url')
         ab.add_participant(username, art_url, time)
+        ab.participants[-1].status = Participant.STATUS_APPROVED
         ab.put()
       except ValueError as e:
         logging.error(traceback.format_exc())
