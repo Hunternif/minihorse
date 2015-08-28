@@ -392,8 +392,8 @@ class ArtBattle(ndb.Model):
       logging.info('[NOT IMPLEMENTED] Updated poll post for Art-Battle %s' % self.date)
 
   def count_votes(self):
-    """Parse poll post to update participants with their respective vote coutn"""
-    logging.info("Ending and counting votes for Art-Battle %s" % self.date)
+    """Parse poll post to update participants with their respective vote count"""
+    logging.info("Ending and counting votes via poll for Art-Battle %s" % self.date)
     user = get_state().get_admin()
     # Vote (for no candidate) to make sure poll results are readable:
     try:
@@ -412,6 +412,42 @@ class ArtBattle(ndb.Model):
       raise tabun_api.TabunError(msg="Invalid poll post #%d" % self.poll_post_id)
     #TODO take screenshot
     self.put()
+    logging.info('Finished counting votes')
+  
+  def count_votes_comments(self):
+    """Parse comments to the post to update participants with their respective vote count"""
+    logging.info("Ending and counting votes via comments for Art-Battle %s" % self.date)
+    user = get_state().get_admin()
+    (post, comments) = user.get_post_and_comments(self.poll_post_id)
+    user_votes = {} # Maps username to their vote
+    for comment in comments.itervalues():
+      # Attempt to find leading symbol '#' or '№', then leading or trailing word 'участник' or 'номер':
+      m = re.search(u'[#№]\s*(?P<number>\d+)', comment.raw_body, re.UNICODE|re.DOTALL|re.IGNORECASE)
+      if not m:
+        m = re.search(u'уч(астни)?-?ка?\s*#?№?\s*(?P<number>\d+)', comment.raw_body, re.UNICODE|re.DOTALL|re.IGNORECASE)
+      if not m:
+        m = re.search(u'(?P<number>\d+)\s*-?[уоы]?й?\s*уч(астни)?-?ка?', comment.raw_body, re.UNICODE|re.DOTALL|re.IGNORECASE)
+      if not m:
+        m = re.search(u'номер(ом)?\s*#?№?\s*(?P<number>\d+)', comment.raw_body, re.UNICODE|re.DOTALL|re.IGNORECASE)
+      if not m:
+        m = re.search(u'(?P<number>\d+)\s*-?[уоы]?й?\s*номер(ом)?', comment.raw_body, re.UNICODE|re.DOTALL|re.IGNORECASE)
+      if m:
+        user_votes[comment.author] = int(m.group('number'))
+        logging.info('User %s voted for participant %d' % (comment.author, int(m.group('number'))))
+    # Apply votes to participants:
+    votes_per_participant = [0]*len(self.participants) # Maps participant's number MINUS ONE to number of votes
+    total_votes = 0
+    for vote in user_votes.viewvalues():
+      p_id = int(vote) - 1
+      if p_id >= 0 and p_id < len(self.participants):
+        votes_per_participant[p_id] += 1
+        total_votes += 1
+    
+    for i in range(len(votes_per_participant)):
+      self.find_participant_by_number(i + 1).votes = votes_per_participant[i]
+    self.total_votes = total_votes
+    self.put()
+    logging.info('Finished counting votes')
   
   def post_results(self, draft=True):
     """Creates a post with results.
@@ -591,6 +627,17 @@ class ABCountVotesHandler(ABBaseHandler):
         self.response.set_status(403)
         self.response.write(e.message)
 
+class ABCountVotesCommentsHandler(ABBaseHandler):
+  def post(self, *args):
+    ab = self.get_ArtBattle()
+    if ab:
+      try:
+        ab.count_votes_comments()
+      except (tabun_api.TabunError, ArtBattleError) as e:
+        logging.error(traceback.format_exc())
+        self.response.set_status(403)
+        self.response.write(e.message)
+
 class ABPostResultsHandler(ABBaseHandler):
   def post(self, *args):
     ab = self.get_ArtBattle()
@@ -712,7 +759,7 @@ class ABCurrentHandler(ABBaseHandler):
     if state.current_battle:
       self.redirect('/artbattle/edit?date=%s' % state.current_battle.get().date)
     else:
-      self.redirect('/artbattle/current')
+      self.redirect('/artbattle/edit')
   def post(self, *args):
     state = get_state()
     ab = self.get_ArtBattle()
@@ -780,6 +827,7 @@ app = webapp2.WSGIApplication([
   ('/artbattle/set_theme', ABSetThemeHandler),
   ('/artbattle/post_poll', ABPostPollHandler),
   ('/artbattle/count_votes', ABCountVotesHandler),
+  ('/artbattle/count_votes_comments', ABCountVotesCommentsHandler),
   ('/artbattle/post_results', ABPostResultsHandler),
   ('/artbattle/participant/add', ABParticipantAddHandler),
   ('/artbattle/participant/review', ABParticipantReviewHandler),
