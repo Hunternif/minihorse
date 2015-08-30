@@ -271,6 +271,14 @@ class ArtBattle(ndb.Model):
         return p
     return None
   
+  def max_votes(self):
+    '''Returns the maximum number of votes among all participants.'''
+    max = 0
+    for p in self.participants:
+      if p.votes > max:
+        max = p.votes
+    return max
+  
   def next_ArtBattle(self):
     return ArtBattle.query(ArtBattle.date > self.date, ancestor=ArtBattle.ANCESTOR_KEY).order(ArtBattle.date).get()
   
