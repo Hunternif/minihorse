@@ -14,7 +14,7 @@ from . import utils, compat
 from .compat import PY2, BaseCookie, urequest, text_types, text, binary
 
 
-__version__ = '0.6.2'
+__version__ = '0.6.3'
 
 #: Адрес Табуна. Именно на указанный здесь адрес направляются запросы.
 http_host = "http://tabun.everypony.ru"
@@ -45,7 +45,7 @@ class NoRedirect(urequest.HTTPRedirectHandler):
 class TabunError(Exception):
     """Общее для библиотеки исключение.
     Содержит атрибут code с всякими разными циферками для разных типов исключения, обычно совпадает с HTTP-кодом ошибки при запросе.
-    А в args[0] или текст, или снова код ошибки.
+    А в атрибуте message или текст, или снова код ошибки.
     """
     def __init__(self, msg=None, code=0, data=None):
         self.code = int(code)
@@ -265,7 +265,7 @@ class Poll(object):
 
 class TalkItem(object):
     """Личное сообщение."""
-    def __init__(self, talk_id, recipients, unread, title, date, body=None, author=None, comments=[], raw_body=None):
+    def __init__(self, talk_id, recipients, unread, title, date, body=None, author=None, comments=None, raw_body=None):
         self.talk_id = int(talk_id)
         self.recipients = [text(x) for x in recipients]
         self.unread = bool(unread)
@@ -287,7 +287,7 @@ class TalkItem(object):
         return self.__repr__().decode('utf-8', 'replace')
 
 
-class ActivityItem:
+class ActivityItem(object):
     """Событие со страницы /stream/."""
     WALL_ADD = 0  # Просто чтобы было :)
     POST_ADD = 1
@@ -344,7 +344,8 @@ class ActivityItem:
 
 
 class User(object):
-    """Через божественные объекты класса User осуществляется всё взаимодействие с Табуном. Почти все функции могут кидаться исключением TabunResultError с текстом ошибки (который на сайте обычно показывается во всплывашке в углу).
+    """Через божественные объекты класса User осуществляется всё взаимодействие с Табуном.
+    Почти все функции могут кидаться исключением TabunResultError с текстом ошибки (который на сайте обычно показывается во всплывашке в углу).
 
     Допустимые комбинации параметров (в квадратных скобках опциональные):
 
@@ -353,14 +354,20 @@ class User(object):
     * login + phpsessid + security_ls_key [+ key] (без запроса к серверу)
     * без параметров (анонимус)
 
-    Если у функции есть параметр raw_data, то через него можно передать код страницы, чтобы избежать лишнего парсинга.
+    Если у функции есть параметр raw_data, то через него можно передать код страницы, чтобы избежать лишнего запроса к Табуну.
     Если есть параметр url, то при его указании открывается именно указанный url вместо формирования стандартного с помощью других параметров функции.
 
-    phpsessid - печенька (cookie), по которой идентифицируется пользователь, security_ls_key - секретный ключ движка livestreet для отправки запросов, key - печенька неизвестного мне назначения.
-    Можно не париться с ними, их автоматически пришлёт сервер во время инициализации объекта. А можно, например, не авторизоваться по логину и паролю, а выдрать из браузера печеньку PHPSESSID и авторизоваться через неё.
+    phpsessid - печенька (cookie), по которой идентифицируется пользователь (на самом Табуне называется TABUNSESSIONID).
+    security_ls_key - секретный ключ движка LiveStreet для отправки запросов.
+    key - печенька неизвестного мне назначения.
+    Можно не париться с ними, их автоматически пришлёт сервер во время инициализации объекта.
+    А можно, например, не авторизоваться по логину и паролю, а выдрать из браузера печеньку TABUNSESSIONID, скормить в аргумент phpsessid и авторизоваться через неё.
 
     Конструктор также принимает кортеж proxy из трёх элементов (тип, хост, порт) для задания прокси-сервера. Сейчас поддерживаются только типы socks4 и socks5.
     Вместо передачи параметра можно установить переменную окружения TABUN_API_PROXY=тип,хост,порт — конструктор её подхватит.
+
+    Если нужно парсить не Табун (можно частично парсить другие LiveStreet-сайты с основанным на synio шаблоном), то можно передать http_host,
+    чтобы не переопределять его во всём tabun_api.
 
     У класса также есть следующие поля:
 
@@ -368,7 +375,7 @@ class User(object):
     * talk_unread — число непрочитанных личных сообщений (после update_userinfo)
     * skill — силушка (после update_userinfo)
     * rating — кармушка (после update_userinfo)
-    * timeout — таймаут ожидания ответа от сервера (для urllib2.urlopen, по умолчанию 20)
+    * timeout — таймаут ожидания ответа от сервера (для функции urlopen, по умолчанию 20)
     * phpsessid, security_ls_key, key — ну вы поняли
     """
 
@@ -382,8 +389,12 @@ class User(object):
     rating = None
     query_interval = 0
     proxy = None
+    http_host = None
+    session_cookie_name = 'TABUNSESSIONID'
 
-    def __init__(self, login=None, passwd=None, phpsessid=None, security_ls_key=None, key=None, proxy=None):
+    def __init__(self, login=None, passwd=None, phpsessid=None, security_ls_key=None, key=None, proxy=None, http_host=None):
+        self.http_host = text(http_host).rstrip('/') if http_host else None
+
         self.jd = JSONDecoder()
         self.lock = RLock()
 
@@ -392,7 +403,7 @@ class User(object):
         if proxy is None and os.getenv('TABUN_API_PROXY') and os.getenv('TABUN_API_PROXY').count(',') == 2:
             proxy = os.getenv('TABUN_API_PROXY').split(',')[:3]
         elif proxy:
-            proxy = proxy.split(',') if isinstance(proxy, text_types) else list(proxy)[:2]
+            proxy = proxy.split(',') if isinstance(proxy, text_types) else list(proxy)[:3]
 
         if proxy:
             if not PY2:
@@ -433,7 +444,7 @@ class User(object):
                 for x in resp.headers.get_all("set-cookie") or ():
                     cook.load(x)
             if not self.phpsessid:
-                self.phpsessid = cook.get("TABUNSESSIONID")
+                self.phpsessid = cook.get(self.session_cookie_name)
                 if self.phpsessid:
                     self.phpsessid = self.phpsessid.value
             if not self.key:
@@ -458,7 +469,10 @@ class User(object):
         self.talk_count = 0
 
     def update_userinfo(self, raw_data):
-        """Парсит имя пользователя, рейтинг и число сообщений и записывает в объект. Возвращает имя пользователя."""
+        """Парсит имя пользователя, рейтинг и число непрочитанных сообщений
+        с переданного кода страницы и записывает в объект.
+        Возвращает имя пользователя или None при его отсутствии.
+        """
         userinfo = utils.find_substring(raw_data, b'<div class="dropdown-user"', b"<nav", with_end=False)
         if not userinfo:
             auth_panel = utils.find_substring(raw_data, b'<ul class="auth"', b'<nav', with_end=False)
@@ -517,7 +531,7 @@ class User(object):
         query = "login=" + urequest.quote(login.encode('utf-8'))
         query += "&password=" + urequest.quote(password.encode('utf-8'))
         query += "&remember=" + ("on" if remember else "off")
-        query += "&return-path=" + urequest.quote(return_path if return_path else http_host + "/")
+        query += "&return-path=" + urequest.quote(return_path if return_path else (self.http_host or http_host) + "/")
         if self.security_ls_key:
             query += "&security_ls_key=" + urequest.quote(self.security_ls_key)
 
@@ -536,18 +550,18 @@ class User(object):
         self.key = ckey.value if ckey else None
 
     def check_login(self):
-        """Генерирует исключение, если нет печеньки PHPSESSID или security_ls_key."""
+        """Генерирует исключение, если нет phpsessid или security_ls_key."""
         if not self.phpsessid or not self.security_ls_key:
             raise TabunError("Not logined")
 
     def build_request(self, url, data=None, headers=None, with_cookies=True):
-        """Собирает и возвращает объект urllib2.Request. Используется в методе urlopen."""
+        """Собирает и возвращает объект Request. Используется в методе urlopen."""
 
         if isinstance(url, binary):
             url = url.decode('utf-8')
         if not isinstance(url, urequest.Request):
             if url.startswith('/'):
-                url = http_host + url
+                url = (self.http_host or http_host) + url
             url = urequest.Request(url.encode('utf-8') if PY2 else url)
         if data is not None:
             url.data = data.encode('utf-8') if isinstance(data, text) else data
@@ -557,8 +571,8 @@ class User(object):
             request_headers.update(headers)
 
         if with_cookies and self.phpsessid:
-            request_headers['Cookie'] = ("TABUNSESSIONID=%s; key=%s; LIVESTREET_SECURITY_KEY=%s" % (
-                self.phpsessid, self.key, self.security_ls_key
+            request_headers['Cookie'] = ("%s=%s; key=%s; LIVESTREET_SECURITY_KEY=%s" % (
+                self.session_cookie_name, self.phpsessid, self.key, self.security_ls_key
             )).encode('utf-8')
 
         for header, value in request_headers.items():
@@ -571,8 +585,8 @@ class User(object):
         return url
 
     def send_request(self, request, redir=True, nowait=False, timeout=None):
-        """Отправляет запрос (строку со ссылкой или urllib2.Request).
-        Возвращает результат urllib2.urlopen (объект urllib.addinfourl).
+        """Отправляет запрос (строку со ссылкой или объект Request).
+        Возвращает результат вызова urlopen (объект urllib.addinfourl).
         Используется в методе urlopen.
         """
 
@@ -616,13 +630,15 @@ class User(object):
             self.lock.release()
 
     def urlopen(self, url, data=None, headers=None, redir=True, nowait=False, with_cookies=True, timeout=None):
-        """Отправляет HTTP-запрос и возвращает результат urllib2.urlopen (объект addinfourl).
+        """Отправляет HTTP-запрос и возвращает результат вызова urlopen (объект addinfourl).
         Если указан параметр data, то отправляется POST-запрос.
-        В качестве URL может быть путь с доменом (http://tabun.everypony.ru/), без домена (/index/newall/) или объект urllib2.Request.
+        В качестве URL может быть путь с доменом (http://tabun.everypony.ru/), без домена (/index/newall/) или объект Request.
         Если redir установлен в False, то не будет осуществляться переход по перенаправлению (HTTP-коды 3xx).
-        К запросу добавлется печенька PHPSESSID; with_cookies=False отключает это.
-        По умолчанию соблюдает между запросами временной интервал query_interval (который по умолчанию 0); nowait=True отправляет запрос немедленно.
-        Может кидаться исключением TabunError."""
+        К запросу добавлется печенька TABUNSESSIONID (из атрибута phpsessid); with_cookies=False отключает это.
+        По умолчанию соблюдает между запросами временной интервал query_interval (который по умолчанию 0);
+        при nowait=True запрос всегда отправляется немедленно.
+        Может кидаться исключением TabunError.
+        """
 
         req = self.build_request(url, data, headers, with_cookies)
         return self.send_request(req, redir, nowait, timeout)
@@ -704,7 +720,7 @@ class User(object):
     def add_poll(self, blog_id, title, choices, body, tags, draft=False, check_if_error=False):
         """Создает опрос и возвращает имя блога с номером поста в случае удачи или
         (None, None)  случае неудачи.
-        Вариантов ответов не может быть более 20 штук! Иначе кидается исключение.
+        Вариантов ответов не может быть более 20 штук, иначе кидается исключение.
         При check_if_error=True проверяет наличие поста по заголовку даже в случае ошибки (если, например, таймаут или 404, но пост, как иногда бывает, добавляется)."""
         if len(choices) > 20:
             raise TabunError("Can't have more than 20 choices in poll, but had %d" % len(choices))
@@ -806,7 +822,7 @@ class User(object):
         self.check_login()
         return self.urlopen(
             url='/blog/delete/' + text(int(blog_id)) + '/?security_ls_key=' + self.security_ls_key,
-            headers={"referer": http_host + "/"},
+            headers={"referer": (self.http_host or http_host) + "/"},
             redir=False
         ).getcode() / 100 == 3
 
@@ -836,7 +852,7 @@ class User(object):
         self.check_login()
         return self.urlopen(
             url='/topic/delete/' + text(int(post_id)) + '/?security_ls_key=' + self.security_ls_key,
-            headers={"referer": http_host + "/blog/" + text(post_id) + ".html"},
+            headers={"referer": (self.http_host or http_host) + "/blog/" + text(post_id) + ".html"},
             redir=False
         ).getcode() / 100 == 3
 
@@ -1215,40 +1231,9 @@ class User(object):
         return items
 
     def get_short_blogs_list(self, raw_data=None):
-        """Возвращает список объектов Blogs, но у которого указаны только blog_id, имя и закрытость.
-        Зато, в отличие от get_blogs_list, возвращаются сразу все-все блоги.
+        """Возвращает пустой список. После обновления Табуна не работает, функция оставлена для обратной совместимости.
         """
-        if not raw_data:
-            raw_data = self.urlopen("/index/newall/").read()
-
-        raw_data = utils.find_substring(raw_data, b'<div class="block-content" id="block-blog-list"', b"</ul>")
-        if not raw_data:
-            return []
-
-        raw_data = utils.replace_cloudflare_emails(raw_data)
-        node = utils.parse_html_fragment(raw_data)[0]
-        del raw_data
-        node = node.find("ul")
-
-        blogs = []
-
-        for item in node.findall("li"):
-            blog_id = text(item.find("input").get('onclick'))
-            blog_id = blog_id[blog_id.find("',") + 2:]
-            blog_id = int(blog_id[:blog_id.find(")")])
-
-            a = item.find("a")
-
-            blog = a.get('href')[:-1]
-            blog = blog[blog.rfind("/") + 1:]
-
-            name = text(a.text)
-
-            closed = bool(item.xpath('i[@class="icon-synio-topic-private"]'))
-
-            blogs.append(Blog(blog_id, blog, name, "", closed=closed))
-
-        return blogs
+        return []
 
     def get_people_list(self, page=1, order_by="user_rating", order_way="desc", url=None):
         """Возвращает список броняш - объекты UserInfo."""
@@ -1611,11 +1596,11 @@ class User(object):
         if '/talk/read/' in link:
             return int(link.rstrip('/').rsplit('/', 1)[-1])
 
-    def get_talk_list(self, raw_data=None):
+    def get_talk_list(self, page=1, raw_data=None):
         """Возвращает список объектов Talk с личными сообщениями."""
         self.check_login()
         if not raw_data:
-            req = self.urlopen("/talk/")
+            req = self.urlopen("/talk/inbox/page{}/".format(int(page)))
             raw_data = req.read()
             del req
 
@@ -1655,7 +1640,7 @@ class User(object):
             return
         body = body[0]
 
-        recipients = map(lambda x: x.text.strip().encode("utf-8"), item.xpath('div[@class="talk-search talk-recipients"]/header/a[@class!="link-dotted"]'))
+        recipients = map(lambda x: x.text.strip(), item.xpath('div[@class="talk-search talk-recipients"]/header/a[@class!="link-dotted"]'))
 
         footer = item.find("footer")
         author = footer.xpath('ul/li[@class="topic-info-author"]/a[2]/text()')[0].strip()
@@ -1932,15 +1917,16 @@ def parse_post(item):
     if poll:
         poll = parse_poll(poll[0])
 
-    fav = footer.xpath('ul[@class="topic-info"]/li[@class="topic-info-favourite"]')
-    # favourite = utils.find_substring(fav[0][1].text, '>', '</', with_start=False, with_end=False).strip()
-    favourite = 0
+    fav = footer.xpath('ul[@class="topic-info"]/li[starts-with(@class, "topic-info-favourite")]')[0]
+    favourited = fav.get('class').endswith(' active')
+    if not favourited:
+        i = fav.find('i')
+        favourited = i is not None and i.get('class', '').endswith(' active')
+    favourite = fav.xpath('span[@class="favourite-count"]/text()')
     try:
-        favourite = int(favourite) if favourite else 0
+        favourite = int(favourite[0]) if favourite and favourite[0] else 0
     except ValueError:
-        favourite = None
-    favourited = fav[0].find('i')
-    favourited = favourited is not None and 'active' in favourited.get('class', '')
+        favourite = 0
 
     comments_count = None
     comments_new_count = None
