@@ -266,7 +266,12 @@
 					<td class="verta"><img src="{{p.art_preview_url}}"></img></td>
 					<td class="verta col-md-2">{% if p.votes==None %}-{% elif artbattle.total_votes %}
 						<div class="progress">
-							{% set percent = p.votes / artbattle.max_votes() * 100 %}
+							{% set max_votes = artbattle.max_votes() %}
+							{% if max_votes > 0 %}
+								{% set percent = p.votes / max_votes * 100 %}
+							{% else %}
+								{% set percent = 0 %}
+							{% endif %}
 							<div class="progress-bar progress-bar-success" role="progressbar" aria-valuenow="{{p.votes}}" aria-valuemin="0" aria-valuemax="{{artbattle.max_votes()}}" style="width:{{percent}}%">
 							<span>{{p.votes}}</span>
 							</div>
