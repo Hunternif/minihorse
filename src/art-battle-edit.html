@@ -287,13 +287,19 @@
 						<input type="text" class="form-control" id="p_username"></input>
 						<span class="input-group-addon"><i class="glyphicon glyphicon-user"></i></span>
 					</div></td>
-					<td><div class="input-group">
-						<input type="text" class="form-control" id="p_art_url"></input>
-						<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
-					</div></td>
+					<td>
+						<div class="input-group">
+							<input type="text" class="form-control" id="p_art_url"></input>
+							<span class="input-group-addon"><i class="glyphicon glyphicon-link"></i></span>
+						</div>
+						<div class="checkbox">
+							<label>
+								<input id="imgurify" type="checkbox" checked></input> Resize and re-upload to Imgur
+							</label>
+						</div>
+					</td>
 					<td><button type="button" class="btn btn-default" onclick="add_participant()">Add</button></td>
 					<td></td>
-					<!-- TODO: upload image to imgur -->
 					<td></td>
 				</tr>
 			</tbody>
@@ -423,7 +429,8 @@
 			date: date,
 			time: $('#p_time').val(),
 			username: $('#p_username').val(),
-			art_url: $('#p_art_url').val()
+			art_url: $('#p_art_url').val(),
+			imgurify: $('#imgurify').prop('checked')
 		});
 	}
 	function set_participant_time_now() {

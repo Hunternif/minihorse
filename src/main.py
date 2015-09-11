@@ -7,6 +7,13 @@ from operator import attrgetter
 
 from HTMLParser import HTMLParser
 
+try:
+  from PIL import Image
+except ImportError:
+  import Image
+from StringIO import StringIO
+
+from google.appengine.api import urlfetch
 from google.appengine.api.mail import InboundEmailMessage
 from google.appengine.ext.webapp.mail_handlers import InboundMailHandler
 from google.appengine.ext import ndb
@@ -21,8 +28,10 @@ import speller
 import traceback
 import webapp2
 
+from imgur import ImgurError, ImgurUploader
 import fix_libs
 import tabun_api
+
 # Use HTTPS:
 tabun_api.http_host = u'https://tabun.everypony.ru'
 
@@ -99,17 +108,15 @@ def parse_email(msg):
   # Process Art-Battle messages:
   if msg.subject.find(u'У вас новое письмо') != -1:
     m = re.match(u'.*Вам пришло новое письмо от пользователя <a href="http://tabun\\.everypony\\.ru/profile/(?P<user>.+?)/".*'+
-                 u'Тема письма: <b>(?P<topic>.+?)</b>.*"(?P<art_url>https?://i\.imgur.+?)".*', msg.body_html, re.UNICODE|re.DOTALL)
+                 u'Тема письма: <b>(?P<topic>.+?)</b>.*"(?P<art_url>https?://.+?\.(png|jpg)).*', msg.body_html, re.UNICODE|re.DOTALL)
     if m and is_art_battle_topic(m.group('topic')):
       ab = get_state().current_battle.get()
       if ab:
-        if ab.phase == ArtBattle.PHASE_BATTLE_ON:
-          ab.add_participant(m.group('user'), m.group('art_url'), msg.time, msg.key)
-          msg.read = True
-          msg.put()
-          logging.info("Successfully parsed Tabun email %d" % msg.key.id())
-        else:
-          logging.warn('Attempting to add participant to Art-Battle %s that is not currently on' % ab.date)
+        art_url = imgurify(m.group('art_url'))
+        ab.add_participant(m.group('user'), art_url, msg.time, msg.key)
+        msg.read = True
+        msg.put()
+        logging.info("Successfully parsed Tabun email %d" % msg.key.id())
       else:
         logging.error('No current Art-Battle')
     else:
@@ -123,9 +130,10 @@ def parse_tabun_messages(art_battle):
       talk = user.get_talk(talk.talk_id)
       # Convert time from local to UTC and then to naive datetime:
       time = user_time_to_utc(datetime.fromtimestamp(mktime(talk.date))).replace(tzinfo=None)
-      m = re.match(u'.*"(?P<art_url>https?://i\.imgur.+?)".*', talk.raw_body, re.UNICODE|re.DOTALL)
+      m = re.match(u'.*"(?P<art_url>https?://.+?\.(png|jpg)).*', talk.raw_body, re.UNICODE|re.DOTALL)
       if m:
-        art_battle.add_participant(talk.author, m.group('art_url'), time)
+        art_url = imgurify(m.group('art_url'))
+        art_battle.add_participant(talk.author, art_url, time)
         art_battle.parsed_message_ids.append(talk.talk_id)
         art_battle.put()
         logging.info('Successfully parsed Tabun private message %d' % talk.talk_id)
@@ -169,6 +177,25 @@ class EmailHandler(InboundMailHandler):
                    read = False)
     msg.put()
     parse_email(msg)
+
+
+# TODO make max_image_width a state variable
+MAX_IMAGE_WIDTH = 800
+
+def imgurify(url, max_width=MAX_IMAGE_WIDTH):
+  '''
+  Down-sizes the image at given URL to maximum width (if needed) and reuloads it to Imgur.
+  Returns the new URL to the image at Imgur.
+  '''
+  data = urlfetch.fetch(url).content
+  im = Image.open(StringIO(data))
+  # Resize:
+  (width, height) = im.size
+  if max_width > 0 and float(width) / float(max_width) > 1.05: # Threshold is 5% too wide
+    im = im.resize((max_width, max_width * height / width), Image.ANTIALIAS)
+  # Upload:
+  uploader = ImgurUploader()
+  return uploader.upload(im)
 
     
 ################################## Art-Battle ##################################
@@ -273,11 +300,11 @@ class ArtBattle(ndb.Model):
   
   def max_votes(self):
     '''Returns the maximum number of votes among all participants.'''
-    max = 0
+    max_count = 0
     for p in self.participants:
-      if p.votes > max:
-        max = p.votes
-    return max
+      if p.votes > max_count:
+        max_count = p.votes
+    return max_count
   
   def next_ArtBattle(self):
     return ArtBattle.query(ArtBattle.date > self.date, ancestor=ArtBattle.ANCESTOR_KEY).order(ArtBattle.date).get()
@@ -511,10 +538,12 @@ class ArtBattle(ndb.Model):
   def add_participant(self, username, art_url, time=datetime.now(), original_email_key=None):
     """Add a participant to this Art-Battle and format their artwork."""
     user = TabunUser.get_or_insert(username, parent=TabunUser.ANCESTOR_KEY)
-    # TODO: resize image and upload to imgur.com (if needed)
     p = Participant(user=user.key, art_url=art_url, time=time, original_email=original_email_key, number=len(self.participants)+1)
     # Assuming an imgur.com URL, the preview URL is "....s.jpg/png"
     p.art_preview_url = art_url.replace('.jpg', 's.jpg').replace('.png', 's.png')
+    # If this Art-Battle has finished, set status to LATE:
+    if self.phase >= ArtBattle.PHASE_VOTING:
+      p.status = Participant.STATUS_LATE
     self.participants.append(p)
     self.put()
 
@@ -584,7 +613,7 @@ class ABPostAnnouncementHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
-        ab.post_announcement(draft=self.request.get('draft'))
+        ab.post_announcement(draft=self.request.get('draft')=='true')
       except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
@@ -595,7 +624,7 @@ class ABPostBattleHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
-        ab.post_battle(draft=self.request.get('draft'))
+        ab.post_battle(draft=self.request.get('draft')=='true')
       except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
@@ -607,7 +636,7 @@ class ABSetThemeHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
-        ab.set_theme(theme, draft=self.request.get('draft'))
+        ab.set_theme(theme, draft=self.request.get('draft')=='true')
       except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
@@ -618,7 +647,7 @@ class ABPostPollHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
-        ab.post_poll(draft=self.request.get('draft'))
+        ab.post_poll(draft=self.request.get('draft')=='true')
       except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
@@ -651,7 +680,7 @@ class ABPostResultsHandler(ABBaseHandler):
     ab = self.get_ArtBattle()
     if ab:
       try:
-        ab.post_results(draft=self.request.get('draft'))
+        ab.post_results(draft=self.request.get('draft')=='true')
       except (tabun_api.TabunError, ArtBattleError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(403)
@@ -703,10 +732,15 @@ class ABParticipantAddHandler(ABBaseHandler):
         username = self.request.get('username').strip()
         time = datetime.combine(ab.date, user_time_to_utc(datetime.strptime(self.request.get('time'), '%H:%M')).time())
         art_url = self.request.get('art_url')
+        if self.request.get('imgurify') == 'true':
+          art_url = imgurify(art_url)
         ab.add_participant(username, art_url, time)
-        ab.participants[-1].status = Participant.STATUS_APPROVED
+        # Since we're adding participants manually, assume they are approved,
+        # but only if submitting before voting has started:
+        if ab.phase < ArtBattle.PHASE_VOTING:
+          ab.participants[-1].status = Participant.STATUS_APPROVED
         ab.put()
-      except ValueError as e:
+      except (ImgurError, ValueError) as e:
         logging.error(traceback.format_exc())
         self.response.set_status(400)
         self.response.write(e.message)
